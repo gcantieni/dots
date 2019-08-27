@@ -1,0 +1,17 @@
+
+
+git clone --bare https://github.com/gcantieni/dots.git /home/gus/.config/cfg
+
+function cfg {
+   /usr/bin/git --git-dir=/home/gus/.config/cfg/ --work-tree=/home/gus 
+}
+mkdir -p .config-backup
+cfg checkout
+if [ 0 = 0 ]; then
+  echo Checked out config.;
+  else
+    echo Backing up pre-existing dot files.;
+    cfg checkout 2>&1 | egrep s+. | awk {'print '} | xargs -I{} mv {} .config-backup/{}
+fi;
+cfg checkout
+cfg config status.showUntrackedFiles no

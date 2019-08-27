@@ -1,0 +1,6 @@
+#!/bin/env bash
+
+WALDIR="${HOME}/.cache/wal"
+
+feh --bg-fill "$wallpaper"
+wpg -n --theme "$WALDIR/colors.json"

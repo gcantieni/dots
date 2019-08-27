@@ -1,0 +1,17 @@
+#/bin/sh
+
+clock() {
+	echo "`date +%H:%M`"
+}
+
+battery() {
+	CAP=`cat /sys/class/power_supply/BAT0/capacity`
+	echo "$CAP%"
+}
+
+source "${HOME}/.cache/wal/colors.sh"
+while true; do
+	BAR="%{c}%{F$color7}$(battery) %{O20}%{F$color8}$(clock)"
+	echo $BAR 
+	sleep 1
+done

@@ -1,0 +1,9 @@
+#/bin/sh
+
+font="SourceCodeProBold:style=bold:size=18"
+geo="300x60+1500+5"
+monitor="eDP-1"
+
+baropts="-o 5 -u 0 -f $font -g $geo -p"
+
+barinput | lemonbar $monitor $baropts

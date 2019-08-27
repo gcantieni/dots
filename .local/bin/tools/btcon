@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+
+# given by Will Povell RIP
+MACS="EB:06:EF:60:90:DD\nEX:AM:PL:EE"
+MAC=$(echo -e $MACS | menu -i -p $MACS)
+coproc bluetoothctl
+echo "power on"
+echo "power on" >&${COPROC[1]}
+echo "scan on"
+echo "scan on" >&${COPROC[1]}
+echo "waiting for headphones..."
+while read read line <&${COPROC[0]} || [[ -n "$line" ]]; do
+  echo "$line"
+  echo "STILL IN HERE"
+  if ! $(echo $line | grep $MAC); then
+    break;
+  fi
+done
+echo "OUUUUUUUUUUUUUUUUUUUT"
+echo "connect $MAC" >&${COPROC[1]}
+echo "scan off" >&${COPROC[1]}
+sleep 1
+while read read line <&${COPROC[0]} || [[ -n "$line" ]]
+do
+  case "$line" in
+     *"Connection succesful"*) echo "GREAT SUCCESS" ;;
+     *) echo "NORM: $line";;
+  esac
+done

@@ -1,0 +1,17 @@
+#!/bin/env bash
+# If called with argument will assume a file and generate
+# a dark color scheme with that file.
+# If passed "-l" it will use the generated colorscheme and and toggle
+# it to light. Otherwise it will assume minor tweaks to existing theme file
+# and simply reset it.
+
+THEMEFILE="$HOME/.cache/wal/colors.json"
+
+[ ! -f $THEMEFILE ] && [ ! -f "$1" ] && exit 1
+
+[ "$1" = "-l" ] && wal -l --theme $THEMEFILE && exit 0
+
+[ -f "$1" ] && wal "$1" && exit 0
+
+wal --theme $THEMEFILE
+
