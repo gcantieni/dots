@@ -12,8 +12,8 @@
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
 
-
 ;; Integrate use of use-package
+(setq use-package-always-defer t)
 (straight-use-package 'use-package)
 (setq straight-use-package-by-default t)
 

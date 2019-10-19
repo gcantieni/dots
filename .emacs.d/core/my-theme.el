@@ -7,17 +7,25 @@
 
 ;; Inherit theme from wal
 (use-package ewal
+  :demand t
   :straight (ewal
              :type git
              :files ("ewal.el" "palettes")
              :host gitlab
              :branch "develop"
-             :repo "jjzmajic/ewal"))
+             :repo "jjzmajic/ewal")
+  :init
+  (setq ewal-use-built-in-always-p nil
+	ewal-use-built-in-on-failure-p t
+	ewal-built-in-palette "tango-dark"
+	ewal-wal-json-file "~/.config/wpg/templates/colors.json"))
 
 (use-package ewal-spacemacs-themes
+  :demand t
+  :after ewal
   :config
-  (load-theme 'ewal-spacemacs-modern t)
-  (enable-theme 'ewal-spacemacs-modern))
+  (load-theme 'ewal-spacemacs-modern-high-contrast t)
+  (enable-theme 'ewal-spacemacs-modern-high-contrast))
 
 (use-package all-the-icons)
 
