@@ -1,0 +1,15 @@
+(straight-use-package 'anaconda-mode)
+(straight-use-package 'company-anaconda)
+(straight-use-package 'py-autopep8)
+(with-eval-after-load "python"
+  (setq py-autopep8-options '("--aggressive" "--aggressive"))
+  (defun gus-python-mode-hook ()
+    (anaconda-mode)
+    (py-autopep8-enable-on-save)
+    (require 'rx)
+    (setq-local company-backends '((company-anaconda company-dabbrev-code company-keywords))))
+    ;(add-to-list 'company-backends 'company-anaconda))
+  (add-hook 'python-mode-hook #'gus-python-mode-hook))
+
+(straight-use-package 'pyenv-mode)
+(provide 'gus-python-lang)

@@ -1,0 +1,5 @@
+(defun gus-lisp-hook ()
+  (setq evil-shift-width 2)
+  (rainbow-delimiters-mode))
+(add-hook 'emacs-lisp-mode-hook #'gus-lisp-hook)
+(provide 'gus-lisp)
