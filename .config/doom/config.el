@@ -76,7 +76,18 @@
 ;; they are implemented.
 
 
-(map! "M-o" #'other-window)
+
+;; Global default keybindings
+(map! "M-o" #'other-window
+      :leader
+      "1" #'delete-other-windows
+      "2" #'split-window-below
+      "3" #'split-window-right
+      "0" #'+workspace/close-window-or-workspace)
+
+;; TODO: doesn't seem to work
+(map! :nv "," nil)
+(setq doom-localleader-key ",")
 
 (after! org
   (setq org-agenda-files (quote ("~/notes/" "~/notes/work-journal/")))
@@ -150,10 +161,11 @@
           ("s" "Someday"
            ((tags-todo "-project/+SOMEDAY" ((org-agenda-overriding-header "Someday tasks")))
             (tags-todo "+project/+SOMEDAY" ((org-agenda-overriding-header "Someday projects")))))))
-  (map! "C-c a" #'org-agenda)
-  )
+  (map! "C-c c" #'org-capture)
+  (map! "C-c a" #'org-agenda))
 
 (use-package! org-journal
+  :after org
   :config
   (setq org-journal-dir "~/notes/work-journal")
   (setq org-journal-file-type 'yearly)
@@ -161,10 +173,8 @@
   :bind
   (("C-c j" . org-journal-new-entry)))
 
-
-
-
 (use-package! org-drill
+  :after org
   :init
   (defun gc-org-drill ()
     """jump to my flashcard file and start a drill session."""
@@ -174,3 +184,13 @@
 
   :bind
   ("C-c d" . gc-org-drill))
+
+;(after! p4
+;  (map! "SPC x e" #'p4-edit))
+
+
+(use-package! p4)
+; I could also bind this on the cpp localleader key
+(map! :leader
+      "x" nil ; Need to unbding before it can be rebound TODO: make my own prefix map
+      :desc "p4" "x p" p4-prefix-map)
