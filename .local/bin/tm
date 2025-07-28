@@ -1,0 +1,5 @@
+#!/bin/bash
+
+sess=$(tmux ls | cut -d':' -f1 | fzf --header attach-to-session)
+
+tmux a -t "$sess"
