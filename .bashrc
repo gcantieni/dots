@@ -17,7 +17,6 @@ export HISTSIZE=1000000000
 eval "$(direnv hook bash)"
 
 export EDITOR=nvim
-export u=/u/gcantieni
 
 alias v=$EDITOR
 alias vg='rg --files --hidden --glob "!{.git,node_modules}/*" | fzf --preview "bat --style=numbers --color=always {} | head -n 100" | xargs -o nvim'
