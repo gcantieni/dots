@@ -74,20 +74,27 @@
 ;;
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
-
-
+;; Unbindings
+(map! :map vterm-mode-map
+      "M-p" nil)
 
 ;; Global default keybindings
 (map! "M-o" #'other-window
+      "M-p" #'+popup/other
+      "C-/" #'+vterm/toggle
       :leader
       "1" #'delete-other-windows
       "2" #'split-window-below
       "3" #'split-window-right
-      "0" #'+workspace/close-window-or-workspace)
+      "0" #'+workspace/close-window-or-workspace
+      "," #'consult-buffer)
 
-;; TODO: doesn't seem to work
 (map! :nv "," nil)
 (setq doom-localleader-key ",")
+
+(after! lsp
+  (map! :map lsp-mode-map
+        :nvim "M-p" nil))
 
 (after! org
   (setq org-agenda-files (quote ("~/notes/" "~/notes/work-journal/")))
@@ -162,7 +169,10 @@
            ((tags-todo "-project/+SOMEDAY" ((org-agenda-overriding-header "Someday tasks")))
             (tags-todo "+project/+SOMEDAY" ((org-agenda-overriding-header "Someday projects")))))))
   (map! "C-c c" #'org-capture)
-  (map! "C-c a" #'org-agenda))
+  (map! "C-c a" #'org-agenda)
+  (map! :map org-mode-map
+        :localleader
+        :desc "Insert structured block" "," #'org-insert-structure-template))
 
 (use-package! org-journal
   :after org
@@ -193,4 +203,5 @@
 ; I could also bind this on the cpp localleader key
 (map! :leader
       "x" nil ; Need to unbding before it can be rebound TODO: make my own prefix map
-      :desc "p4" "x p" p4-prefix-map)
+      :desc "p4" "x p" p4-prefix-map
+      :desc "p4 diff" "=" #'p4-diff)
