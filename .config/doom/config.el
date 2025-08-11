@@ -3,8 +3,7 @@
 (setq user-full-name "Gus Cantieni"
       user-mail-address "gus.cantieni@gmail.com")
 
-(setq doom-theme 'doom-nord
-      doom-font "JetBrainsMonoNL Nerd Font-12")
+(setq doom-theme 'doom-nord)
 
 (setq display-line-numbers-type 'relative
       compile-command "make")
