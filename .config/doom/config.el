@@ -3,12 +3,20 @@
 (setq user-full-name "Gus Cantieni"
       user-mail-address "gus.cantieni@gmail.com")
 
-(setq doom-theme 'doom-nord)
+(setq doom-theme 'doom-gruvbox-light)
 
-(setq display-line-numbers-type 'relative
-      compile-command "make")
+(setq doom-font "CaskaydiaMono Nerd Font-18.0")
+
+;; Smartparens was giving me grief
+(remove-hook 'doom-first-buffer-hook #'smartparens-global-mode)
+
+(setq ;display-line-numbers-type 'relative
+ compile-command "make")
 
 (setq org-directory "~/notes/")
+
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+
 ;; Unbindings
 (map! :map vterm-mode-map
       "M-p" nil)
@@ -22,15 +30,36 @@
       "2" #'split-window-below
       "3" #'split-window-right
       "0" #'+workspace/close-window-or-workspace
-      "," #'consult-buffer)
+      "," #'consult-buffer
+      "/" #'rg)
+
+;; There's some intens popup rules we can use to customize popups.
+                                        ;(after! vterm
+                                        ;  (set-popup-rule! "*doom:vterm-popup:main" :size 0.25 :vslot -4 :select t :quit nil :ttl 0 :side 'right))
+
+
+;; attempt at getting the cursor to look right in the term
+;; see: https://github.com/akermu/emacs-libvterm/issues/313
+(use-package vterm
+  :config
+  (advice-add #'vterm--redraw :after (lambda (&rest args) (evil-refresh-cursor evil-state)))
+  (add-hook 'vterm-mode-hook (lambda () (display-line-numbers-mode -1))))
+
 
 (map! :nv "," nil)
 (setq doom-localleader-key ",")
 
+
+;; TODO: check if this worked
+(after! mhtml
+  (map! :map html-mode-map "M-o" nil))
+
 (after! lsp
   (map! :map lsp-mode-map
         :nvim "M-p" nil)
-  (require 'dap-cpptools))
+  (require 'dap-cpptools)
+  (setq rustic-format-on-save t))
+                                        ;(setq lsp-format-buffer-on-save '("dart")))
 
 (after! org
   (setq org-agenda-files (quote ("~/notes/" "~/notes/work-journal/")))
@@ -45,25 +74,25 @@
   (setq org-stuck-projects '("+project/PROJ" ("NEXT") ("note") ""))
 
   (setq org-capture-templates
-       (quote (("i" "inbox" entry (file+headline "~/notes/notes.org" "Inbox")
-                "* %?\n%U\n%a\n")
-               ("t" "today" entry (file+headline "~/notes/notes.org" "Tickler")
-                "* NEXT %?\n  SCHEDULED: <%(format-time-string \"%Y-%m-%d\")>\n")
-               ("p" "project" entry (file+headline "~/notes/notes.org" "Projects")
-                "* %? :project:\n%U\n%a\n")
-               ("c" "customization" entry (file+headline "~/notes/notes.org" "Customizations")
-                "* TODO %? :easyfun:\n%U\n")
-               ("m" "Mr Testy" entry (file+headline "~/notes/notes.org" "Mr Testy")
-                "* NEXT %? %u\n")
-               ("l" "Liaison request" entry (file+headline "~/notes/notes.org" "Liaison")
-                "* NEXT %? %u\n")
-               ("h" "Habit" entry (file+headline "~/notes/notes.org" "Habits")
-                "* NEXT %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:REPEAT_TO_STATE: NEXT\n:END:\n")
-               ("f" "Flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                "* Item :drill:\n%?\n** Answer\n" :empty-lines 1)
-               ("g" "hide1cloze flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: hide1cloze\n:END:\n%?\n" :empty-lines 1)
-               ("2" "2-sided flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
+        (quote (("i" "inbox" entry (file+headline "~/notes/notes.org" "Inbox")
+                 "* %?\n%U\n%a\n")
+                ("t" "today" entry (file+headline "~/notes/notes.org" "Tickler")
+                 "* NEXT %?\n  SCHEDULED: <%(format-time-string \"%Y-%m-%d\")>\n")
+                ("p" "project" entry (file+headline "~/notes/notes.org" "Projects")
+                 "* %? :project:\n%U\n%a\n")
+                ("c" "customization" entry (file+headline "~/notes/notes.org" "Customizations")
+                 "* TODO %? :easyfun:\n%U\n")
+                ("m" "Mr Testy" entry (file+headline "~/notes/notes.org" "Mr Testy")
+                 "* NEXT %? %u\n")
+                ("l" "Liaison request" entry (file+headline "~/notes/notes.org" "Liaison")
+                 "* NEXT %? %u\n")
+                ("h" "Habit" entry (file+headline "~/notes/notes.org" "Habits")
+                 "* NEXT %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:REPEAT_TO_STATE: NEXT\n:END:\n")
+                ("f" "Flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
+                 "* Item :drill:\n%?\n** Answer\n" :empty-lines 1)
+                ("g" "hide1cloze flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
+                 "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: hide1cloze\n:END:\n%?\n" :empty-lines 1)
+                ("2" "2-sided flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
                  "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: twosided\n:END:\n** Front\n%?\n** Back\n" :empty-lines 1))))
 
   (setq org-modules '(org-bibtex
@@ -131,12 +160,12 @@
   :bind
   ("C-c d" . gc-org-drill))
 
-;(after! p4
-;  (map! "SPC x e" #'p4-edit))
+                                        ;(after! p4
+                                        ;  (map! "SPC x e" #'p4-edit))
 
 
 (use-package! p4)
-; I could also bind this on the cpp localleader key
+                                        ; I could also bind this on the cpp localleader key
 (map! :leader
       "x" nil ; Need to unbding before it can be rebound TODO: make my own prefix map
       :desc "p4" "x p" p4-prefix-map

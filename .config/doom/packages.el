@@ -55,3 +55,4 @@
 (package! direnv)
 (package! anki-editor
   :recipe (:host github :repo "anki-editor/anki-editor"))
+(package! rg)
