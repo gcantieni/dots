@@ -3,8 +3,8 @@
 (setq user-full-name "Gus Cantieni"
       user-mail-address "gus.cantieni@gmail.com")
 
-(setq doom-theme 'doom-nord
-      doom-font "JetBrainsMonoNL Nerd Font-12")
+(setq doom-theme 'modus-operandi-tinted
+      doom-font "JetBrainsMonoNL Nerd Font-10")
 
 (setq display-line-numbers-type 'relative
       compile-command "make")
@@ -23,15 +23,19 @@
       "2" #'split-window-below
       "3" #'split-window-right
       "0" #'+workspace/close-window-or-workspace
-      "," #'consult-buffer)
+      "," #'consult-buffer
+      "/" #'rg)
 
 (map! :nv "," nil)
 (setq doom-localleader-key ",")
 
 (after! lsp
   (map! :map lsp-mode-map
+        :nm "g r" #'lsp-find-references ; TODO: why doesn't this work?
         :nvim "M-p" nil)
   (require 'dap-cpptools))
+
+(add-hook! 'prog-mode-hook #'which-function-mode)
 
 (after! org
   (setq org-agenda-files (quote ("~/notes/" "~/notes/work-journal/")))
@@ -46,26 +50,26 @@
   (setq org-stuck-projects '("+project/PROJ" ("NEXT") ("note") ""))
 
   (setq org-capture-templates
-       (quote (("i" "inbox" entry (file+headline "~/notes/notes.org" "Inbox")
+       (quote (("i" "Inbox" entry (file+headline "~/notes/notes.org" "Inbox")
                 "* %?\n%U\n%a\n")
-               ("t" "today" entry (file+headline "~/notes/notes.org" "Tickler")
+               ("t" "Today" entry (file+headline "~/notes/notes.org" "Tickler")
                 "* NEXT %?\n  SCHEDULED: <%(format-time-string \"%Y-%m-%d\")>\n")
-               ("p" "project" entry (file+headline "~/notes/notes.org" "Projects")
-                "* %? :project:\n%U\n%a\n")
-               ("c" "customization" entry (file+headline "~/notes/notes.org" "Customizations")
+               ("p" "Project" entry (file+headline "~/notes/notes.org" "Projects")
+                "* PROJ %? :project:\n%U\n")
+               ("c" "Customization" entry (file+headline "~/notes/notes.org" "Customizations")
                 "* TODO %? :easyfun:\n%U\n")
                ("m" "Mr Testy" entry (file+headline "~/notes/notes.org" "Mr Testy")
-                "* NEXT %? %u\n")
+                "* NEXT %? %u\n- link:\n- box:\n- path\n")
                ("l" "Liaison request" entry (file+headline "~/notes/notes.org" "Liaison")
                 "* NEXT %? %u\n")
-               ("h" "Habit" entry (file+headline "~/notes/notes.org" "Habits")
-                "* NEXT %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:REPEAT_TO_STATE: NEXT\n:END:\n")
+               ;; ("h" "Habit" entry (file+headline "~/notes/notes.org" "Habits")
+               ;;  "* NEXT %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:REPEAT_TO_STATE: NEXT\n:END:\n")
                ("f" "Flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                "* Item :drill:\n%?\n** Answer\n" :empty-lines 1)
-               ("g" "hide1cloze flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: hide1cloze\n:END:\n%?\n" :empty-lines 1)
-               ("2" "2-sided flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                 "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: twosided\n:END:\n** Front\n%?\n** Back\n" :empty-lines 1))))
+                "* Item :drill:\n%?\n** Answer\n" :empty-lines 1))))
+               ;; ("g" "hide1cloze flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
+               ;;  "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: hide1cloze\n:END:\n%?\n" :empty-lines 1)
+               ;; ("2" "2-sided flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
+               ;;   "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: twosided\n:END:\n** Front\n%?\n** Back\n" :empty-lines 1))))
 
   (setq org-modules '(org-bibtex
                       ;; my additions
