@@ -88,3 +88,4 @@ PS1=$PS1'\[$(vterm_prompt_end)\]'
 
 # Jump anywhere
 command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
+. "$HOME/.cargo/env"
