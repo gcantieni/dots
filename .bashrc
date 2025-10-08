@@ -7,7 +7,7 @@ source "$HOME/.abinitio_bashrc"
 export PATH=/home/gcantieni/.config/emacs/bin:/opt/nvim-linux-x86_64/bin:$PATH
 
 # User customization
-export PATH=$HOME/.local/bin:/u/gcantieni/bin/lin:/home/gcantieni/.local/bin:$PATH
+export PATH=$HOME/bin:$HOME/.local/bin:/u/gcantieni/bin:/home/gcantieni/.local/bin:$PATH
 
 
 # Expand default history file size to unlimited so you never lose terminal history.

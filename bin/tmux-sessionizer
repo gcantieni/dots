@@ -2,8 +2,8 @@
 if [[ $# -eq 1 ]]; then
     selected=$1
 else
-    selected=$(find ~/proj $HOME $HOME/repos -mindepth 1 -maxdepth 1 -type d | sed "s|^$HOME/||" | fzf)
-    [[ $selected ]] && selected="$HOME/$selected"
+  selected=$(find /disk1/sand ~/proj $HOME $HOME/repos -mindepth 1 -maxdepth 1 -type d | fzf)   # | sed "s|^$HOME/||" | sed "s|^/disk1/||" | fzf)
+    # [[ $selected ]] && selected="$HOME/$selected"
 fi
 
 if [[ -z $selected ]]; then

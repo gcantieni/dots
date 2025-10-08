@@ -6,7 +6,7 @@
 (setq doom-theme 'modus-operandi-tinted
       doom-font "JetBrainsMonoNL Nerd Font-10")
 
-(setq doom-font "CaskaydiaMono Nerd Font-18.0")
+;(setq doom-font "CaskaydiaMono Nerd Font-18.0")
 
 ;; Smartparens was giving me grief
 (remove-hook 'doom-first-buffer-hook #'smartparens-global-mode)
