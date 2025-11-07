@@ -4,7 +4,7 @@ _G.gc_whichkey_enabled = true
 
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 vim.o.number = true
 vim.o.relativenumber = true
 vim.o.mouse = 'a'
@@ -42,18 +42,73 @@ vim.o.scrolloff = 10
 vim.o.confirm = true -- prompt instead of failing on save
 
 -- NOTE: expermental grep stuff, trying to get something close to emacs grep experience
---
 vim.o.grepprg = 'rg --vimgrep'
 
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 vim.keymap.set({ 'v', 'x', 'n' }, '<C-y>', '"+y', { desc = 'System clipboard yank.' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
--- TODO: maybe remove these
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+vim.keymap.set('n', '<leader>fs', '<cmd>:w<CR>', { desc = '[F]ile [s]ave' })
+vim.keymap.set('n', '<leader>w', '<cmd>cd %:h<cr>', { desc = 'C[W]D' })
+vim.keymap.set('i', 'kj', '<Esc>')
+vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('n', '<Tab>', '<C-w>w', { silent = true })
+-- bind A-o to "other window" in every mode
+-- TODO: these aren't working
+vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
+vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
+vim.keymap.set('t', '<A-o>', '<cmd>:!echo hi<CR>') -- [[<C-><C-N><C-w>w]], { silent = true })
+
+vim.keymap.set('n', '<leader>gb', function()
+  local file = vim.fn.expand '%:t' -- full path; use '%:p' for full name
+  local line = vim.fn.line '.'
+  local cmd = string.format('break %s:%d', file, line)
+  -- copy to system clipboard (+ register). Change '+' to '"' to copy to unnamed register.
+  vim.fn.setreg('+', cmd)
+  vim.notify('Copied to clipboard: ' .. cmd)
+end, { desc = 'Copy gdb break command for current line' })
+
+-- Function to diff current file against previous P4 revision
+local function p4_diff_prev()
+  local current_file = vim.fn.expand '%:p'
+  if current_file == '' then
+    print 'No file in current buffer'
+    return
+  end
+
+  -- Get temp file for previous revision
+  local temp_file = vim.fn.tempname() .. '_' .. vim.fn.expand '%:t'
+
+  -- Get previous revision using p4 print
+  --  local p4_cmd = string.format('p4 print -q "%s#head-1" > %s', current_file, temp_file)
+  -- Get the revision before your current have revision
+  --
+  local have_result = vim.fn.system(string.format('p4 have %s', current_file))
+  local revision = tonumber(have_result:match '#(%d+)') - 1
+  local p4_cmd = string.format('p4 print -q "%s#%d" > %s', current_file, revision, temp_file)
+  local result = vim.fn.system(p4_cmd)
+
+  if vim.v.shell_error ~= 0 then
+    print('Error getting previous revision: ' .. result)
+    return
+  end
+
+  -- Open diff in new tab
+  vim.cmd 'tabnew'
+  vim.cmd('edit ' .. temp_file)
+  vim.cmd('file [P4 Previous] ' .. vim.fn.expand '%:t')
+  vim.cmd('vertical split ' .. current_file)
+  vim.cmd 'diffthis'
+  vim.cmd 'wincmd h'
+  vim.cmd 'diffthis'
+  vim.cmd 'wincmd ='
+
+  -- Clean up temp file when leaving
+  vim.cmd('autocmd BufWinLeave <buffer> silent !rm ' .. temp_file)
+end
+
+-- Map to <leader>pd (P4 Diff)
+vim.keymap.set('n', '<leader>pd', p4_diff_prev, { desc = 'Diff against previous P4 revision' })
 
 -- TODO: add a "which-key enabled" and "lsp-enabled" global that I can toggle
 -- there's apparently an `enabled` field in each lazy declaration.
@@ -82,10 +137,43 @@ rtp:prepend(lazypath)
 -- PLUGINS
 -- TODO: try some of these perhaps
 -- - [ ] iron repl run current file: https://github.com/Vigemus/iron.nvim?tab=readme-ov-file
--- - [ ] emacs-server like functionality: https://github.com/mhinz/neovim-remote
---
+-- - [ ] emacs-server like functionality: https://github.com/mhinz/neovim-remote  this would enable nvim-terminal oriented workflow which is pretty cool
+-- - [ ] toggle-term
 
 require('lazy').setup({
+  {
+    'guillemaru/perfnvim',
+    config = function()
+      require('perfnvim').setup()
+
+      vim.keymap.set('n', '<leader>pa', function()
+        require('perfnvim').P4add()
+      end, { noremap = true, silent = true, desc = "'p4 add' current buffer" })
+      vim.keymap.set('n', '<leader>pe', function()
+        require('perfnvim').P4edit()
+      end, { noremap = true, silent = true, desc = "'p4 edit' current buffer" })
+      vim.keymap.set('n', '<leader>pR', ':!p4 revert -a %<CR>', { noremap = true, silent = true, desc = 'Revert if unchanged' })
+      vim.keymap.set('n', '<leader>pn', function()
+        require('perfnvim').P4next()
+      end, { noremap = true, silent = true, desc = 'Jump to next changed line' })
+      vim.keymap.set('n', '<leader>pp', function()
+        require('perfnvim').P4prev()
+      end, { noremap = true, silent = true, desc = 'Jump to previous changed line' })
+      vim.keymap.set('n', '<leader>po', function()
+        require('perfnvim').P4opened()
+      end, { noremap = true, silent = true, desc = "'p4 opened' (telescope)" })
+      vim.keymap.set('n', '<leader>pg', function()
+        require('perfnvim').P4grep()
+      end, { noremap = true, silent = true, desc = 'grep p4 files' })
+    end,
+  },
+  {
+    'NotAShelf/direnv.nvim',
+    config = function()
+      require('direnv').setup {}
+    end,
+  },
+
   'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
 
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
@@ -160,7 +248,11 @@ require('lazy').setup({
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set('n', '<leader><leader>', builtin.find_files, { desc = '[S]earch all files' })
+      vim.keymap.set('n', '<leader>sf', function()
+        local file_dir = vim.fn.expand '%:h'
+        builtin.find_files { cwd = file_dir }
+      end, { desc = '[S]earch [f]iles from file dir' })
       -- This one is actually awesome, allows to re-access the previous list
       -- great for fuzzy-find etc.
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
@@ -169,8 +261,10 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
-      vim.keymap.set('n', '<leader>,', builtin.buffers, { desc = '[ ] Find existing buffers' })
-      -- TODO: add a picker for todo's, notes, fixmes, nocheckin
+      vim.keymap.set('n', '<leader>,', function()
+        builtin.buffers { sort_mru = true, ignore_current_buffer = true }
+      end, { desc = '[ ] Find existing buffers' })
+      vim.keymap.set('n', '<leader>st', '<cmd>TodoTelescope<CR>')
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -485,38 +579,44 @@ require('lazy').setup({
       },
     },
   },
+  {
+    'L3MON4D3/LuaSnip',
+    version = '2.*',
+    build = (function()
+      -- Build Step is needed for regex support in snippets.
+      -- This step is not supported in many windows environments.
+      -- Remove the below condition to re-enable on windows.
+      if vim.fn.has 'win32' == 1 or vim.fn.executable 'make' == 0 then
+        return
+      end
+      return 'make install_jsregexp'
+    end)(),
+    dependencies = {
+      -- `friendly-snippets` contains a variety of premade snippets.
+      --    See the README about individual language/framework/plugin snippets:
+      --    https://github.com/rafamadriz/friendly-snippets
+      -- {
+      --   'rafamadriz/friendly-snippets',
+      --   config = function()
+      --     require('luasnip.loaders.from_vscode').lazy_load()
+      --   end,
+      -- },
+    },
+    opts = {},
+    config = function()
+      local ls = require 'luasnip'
+      local s, t = ls.snippet, ls.text_node
 
+      -- add snippet for hanging forever for debugger to attach.
+      ls.add_snippets('c', { s('gwh', t 'int g = 1; while (g) { }') })
+      ls.add_snippets('cpp', { s('gwh', t 'int g = 1; while (g) { }') })
+    end,
+  },
   { -- Autocompletion
     'saghen/blink.cmp',
     event = 'VimEnter',
     version = '1.*',
     dependencies = {
-      -- Snippet Engine
-      {
-        'L3MON4D3/LuaSnip',
-        version = '2.*',
-        build = (function()
-          -- Build Step is needed for regex support in snippets.
-          -- This step is not supported in many windows environments.
-          -- Remove the below condition to re-enable on windows.
-          if vim.fn.has 'win32' == 1 or vim.fn.executable 'make' == 0 then
-            return
-          end
-          return 'make install_jsregexp'
-        end)(),
-        dependencies = {
-          -- `friendly-snippets` contains a variety of premade snippets.
-          --    See the README about individual language/framework/plugin snippets:
-          --    https://github.com/rafamadriz/friendly-snippets
-          -- {
-          --   'rafamadriz/friendly-snippets',
-          --   config = function()
-          --     require('luasnip.loaders.from_vscode').lazy_load()
-          --   end,
-          -- },
-        },
-        opts = {},
-      },
       'folke/lazydev.nvim',
     },
     --- @module 'blink.cmp'
@@ -641,15 +741,31 @@ require('lazy').setup({
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
 
-      local files = require('mini.files').setup()
+      local MiniFiles = require 'mini.files'
+      MiniFiles.setup {}
+      --vim.keymap.set('n', '-', function() end, { desc = 'Open Mini Files' })
     end,
-    keys = { {
-      '<leader>d',
-      function()
-        require('mini.files').open()
-      end,
-      desc = 'Open directory',
-    } },
+    keys = {
+      {
+        '<leader>d',
+        function()
+          require('mini.files').open()
+        end,
+        desc = 'Open directory',
+      },
+      {
+        '-',
+        function()
+          local mf = require 'mini.files'
+          local name = vim.api.nvim_buf_get_name(0)
+          if name ~= '' and vim.loop.fs_stat(name) then
+            mf.open(name)
+          else
+            mf.open(vim.fn.getcwd())
+          end
+        end,
+      },
+    },
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
