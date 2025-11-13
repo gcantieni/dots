@@ -59,6 +59,23 @@ vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
 vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
 vim.keymap.set('t', '<A-o>', '<cmd>:!echo hi<CR>') -- [[<C-><C-N><C-w>w]], { silent = true })
 
+vim.api.nvim_create_autocmd('TermOpen', {
+  pattern = 'term://*',
+  callback = function(args)
+    -- only do this for interactive shell terminals
+    local name = vim.api.nvim_buf_get_name(args.buf)
+    local shell = vim.fn.fnamemodify(vim.o.shell, ':t')
+    if name:match(shell) then
+      local job = vim.b[args.buf].terminal_job_id
+      if job then
+        vim.defer_fn(function()
+          vim.api.nvim_chan_send(job, 'source ~/.config/nvim/bashrc_nvim\n')
+        end, 50)
+      end
+    end
+  end,
+})
+
 vim.keymap.set('n', '<leader>gb', function()
   local file = vim.fn.expand '%:t' -- full path; use '%:p' for full name
   local line = vim.fn.line '.'
