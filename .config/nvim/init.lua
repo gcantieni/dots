@@ -46,6 +46,12 @@ vim.o.confirm = true -- prompt instead of failing on save
 vim.o.grepprg = 'rg --vimgrep'
 
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+
+vim.keymap.set({ 'i', 's' }, '<Esc>', function()
+  vim.snippet.stop()
+  return '<Esc>'
+end, { expr = true })
+
 vim.keymap.set({ 'v', 'x', 'n' }, '<C-y>', '"+y', { desc = 'System clipboard yank.' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
@@ -543,6 +549,44 @@ require('lazy').setup({
           -- },
         },
         opts = {},
+        -- See https://github.com/L3MON4D3/LuaSnip/issues/258#issuecomment-1429989436
+        config = function()
+          function leave_snippet()
+            if
+              ((vim.v.event.old_mode == 's' and vim.v.event.new_mode == 'n') or vim.v.event.old_mode == 'i')
+              and require('luasnip').session.current_nodes[vim.api.nvim_get_current_buf()]
+              and not require('luasnip').session.jump_active
+            then
+              require('luasnip').unlink_current()
+            end
+          end
+
+          -- TODO: figure out why both of these solutions are bad.
+          -- the first one makes me immediately leave snippet.
+          -- the second one simply doesn't work.
+          --
+          --  -- stop snippets when you leave to normal mode
+          --  Option #1
+          --vim.api.nvim_command [[
+          --   autocmd ModeChanged * lua leave_snippet()
+          --]]
+          -- See https://github.com/Saghen/blink.cmp/issues/1805 and ttps://github.com/L3MON4D3/LuaSnip/issues/258#issuecomment-1429989436
+          -- TODO: this doesn't work for some reason, but does seem superior
+          --
+          -- Option #2
+          --vim.keymap.set({ 'n', 's' }, '<Esc>', function()
+          --  vim.cmd 'noh'
+          --  --vim.snippet.stop()
+          --  leave_snippet()
+          --  return '<esc>'
+          --end, { silent = true, expr = true, desc = 'Escape and clear hlsearch/snippet' })
+          --
+          -- Option #3
+          -- vim.keymap.set({ "i", "s" }, "<Esc>", function()
+          --  vim.snippet.stop()
+          --  return "<Esc>"
+          -- end, { expr = true })
+        end,
       },
       'folke/lazydev.nvim',
     },
