@@ -1,14 +1,3 @@
-do
-  local my = vim.fn.fnamemodify(vim.fn.expand '$MYVIMRC', ':p')
-  vim.api.nvim_create_autocmd('SourcePre', {
-    pattern = my,
-    callback = function(ev)
-      local tb = debug.traceback('SourcePre: ' .. ev.file, 2)
-      vim.fn.writefile({ os.date '!%F %T UTC', tb, '' }, '/tmp/source-trace.log', 'a')
-    end,
-  })
-end
-
 -- TODO: use these to optionally disable these intrusive modules
 _G.gc_lsp_enabled = true
 _G.gc_whichkey_enabled = true
@@ -79,53 +68,6 @@ vim.keymap.set('n', '<leader>gb', function()
   vim.notify('Copied to clipboard: ' .. cmd)
 end, { desc = 'Copy gdb break command for current line' })
 
--- Function to diff current file against previous P4 revision
-local function p4_diff_prev()
-  local current_file = vim.fn.expand '%:p'
-  if current_file == '' then
-    print 'No file in current buffer'
-    return
-  end
-
-  -- Get temp file for previous revision
-  local temp_file = vim.fn.tempname() .. '_' .. vim.fn.expand '%:t'
-  local have_revision = vim.fn.expand '%#have'
-  print 'hi'
-
-  --  local result = vim.fn.system('p4 print -q -o ' .. temp_file .. vim.fn.expand ' %:p#have')
-  -- local result = vim.cmd('p4 print -q -o ' .. temp_file .. ' ' .. have_revision)
-
-  -- Get previous revision using p4 print
-  --  local p4_cmd = string.format('p4 print -q "%s#head-1" > %s', current_file, temp_file)
-  -- Get the revision before your current have revision
-  --
-  --local have_result = vim.fn.system(string.format('p4 have %s', current_file))
-  --local revision = tonumber(have_result:match '#(%d+)') - 1
-  --local p4_cmd = string.format('p4 print -q "%s#%d" > %s', current_file, revision, temp_file)
-  --local result = vim.fn.system(p4_cmd)
-
-  --if vim.v.shell_error ~= 0 then
-  --  print('Error getting previous revision: ' .. result)
-  --  return
-  --end
-
-  ---- Open diff in new tab
-  --vim.cmd 'tabnew'
-  --vim.cmd('edit ' .. temp_file)
-  --vim.cmd('file [P4 Previous] ' .. vim.fn.expand '%:t')
-  --vim.cmd('vertical split ' .. current_file)
-  --vim.cmd 'diffthis'
-  --vim.cmd 'wincmd h'
-  --vim.cmd 'diffthis'
-  --vim.cmd 'wincmd ='
-
-  ---- Clean up temp file when leaving
-  --vim.cmd('autocmd BufWinLeave <buffer> silent !rm ' .. temp_file)
-end
-
--- Map to <leader>pd (P4 Diff)
-vim.keymap.set('n', '<leader>pD', p4_diff_prev, { desc = 'Diff against previous P4 revision' })
-
 -- TODO: add a "which-key enabled" and "lsp-enabled" global that I can toggle
 -- there's apparently an `enabled` field in each lazy declaration.
 
@@ -157,32 +99,6 @@ rtp:prepend(lazypath)
 -- - [ ] toggle-term
 
 require('lazy').setup({
-  {
-    'guillemaru/perfnvim',
-    config = function()
-      require('perfnvim').setup()
-
-      vim.keymap.set('n', '<leader>pa', function()
-        require('perfnvim').P4add()
-      end, { noremap = true, silent = true, desc = "'p4 add' current buffer" })
-      vim.keymap.set('n', '<leader>pe', function()
-        require('perfnvim').P4edit()
-      end, { noremap = true, silent = true, desc = "'p4 edit' current buffer" })
-      vim.keymap.set('n', '<leader>pR', ':!p4 revert -a %<CR>', { noremap = true, silent = true, desc = 'Revert if unchanged' })
-      vim.keymap.set('n', '<leader>pn', function()
-        require('perfnvim').P4next()
-      end, { noremap = true, silent = true, desc = 'Jump to next changed line' })
-      vim.keymap.set('n', '<leader>pp', function()
-        require('perfnvim').P4prev()
-      end, { noremap = true, silent = true, desc = 'Jump to previous changed line' })
-      vim.keymap.set('n', '<leader>po', function()
-        require('perfnvim').P4opened()
-      end, { noremap = true, silent = true, desc = "'p4 opened' (telescope)" })
-      vim.keymap.set('n', '<leader>pg', function()
-        require('perfnvim').P4grep()
-      end, { noremap = true, silent = true, desc = 'grep p4 files' })
-    end,
-  },
   {
     'NotAShelf/direnv.nvim',
     config = function()
