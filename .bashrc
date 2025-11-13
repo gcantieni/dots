@@ -42,6 +42,11 @@ alias rmtmp="find /tmp -mindepth 1 -delete" # don't rm -rf
 
 alias dots='/usr/bin/git --git-dir "$HOME/.dots/" --work-tree "$HOME"'
 
+alias projcd='cd "$PROJ"'
+alias projn='$EDITOR $PROJ/notes.txt'
+alias projt='$EDITOR $PROJ/todo.txt'
+alias gdb='gdb -q'
+
 # Tools
 
 # fzf integration
@@ -52,7 +57,13 @@ bind '"\C-o": "$(find \"$PWD\" -type d | fzf)\e\C-e"'
 # Only load Liquid Prompt in interactive shells, not from a script or from scp
 #[[ $- = *i* ]] && source $HOME/repos/liquidprompt/liquidprompt
 
-# this seemed to be missing some chars--annoying
+function y() {
+    local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+    yazi "$@" --cwd-file="$tmp"
+    IFS= read -r -d '' cwd < "$tmp"
+    [ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
+    rm -f -- "$tmp"
+}
 
 eval "$(direnv hook bash)"
 

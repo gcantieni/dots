@@ -4,7 +4,7 @@
       user-mail-address "gus.cantieni@gmail.com")
 
 (setq doom-theme 'modus-operandi-tinted
-      doom-font "JetBrainsMonoNL Nerd Font-10")
+      doom-font "JetBrainsMonoNL Nerd Font-12")
 
 ;(setq doom-font "CaskaydiaMono Nerd Font-18.0")
 
@@ -99,11 +99,13 @@
   (setq org-agenda-custom-commands
         '((" " "Agenda"
            ((agenda ""
-                    ((org-agenda-skip-function '(org-agenda-skip-entry-if 'tag "drill"))
-                     (org-agenda-span 'day)))  ;; The default agenda for today/week
+                    ((org-agenda-span 'day)
+                     (org-agenda-start-day nil)))  ;; The default agenda for today/week
 
             (tags-todo "-easyfun/+NEXT"
                        ((org-agenda-overriding-header "Tasks")))
+
+            (todo "WAIT" ((org-agenda-overriding-header "Waiting tasks")))
 
             (tags-todo "+easyfun/+NEXT"
                        ((org-agenda-overriding-header "Low energy/fallback tasks")))))
