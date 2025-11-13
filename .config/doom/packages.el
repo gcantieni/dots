@@ -52,6 +52,7 @@
 (package! org-journal)
 (package! olivetti)
 (package! p4)
+(package! rg)
 (package! direnv)
 (package! anki-editor
   :recipe (:host github :repo "anki-editor/anki-editor"))

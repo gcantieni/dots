@@ -3,9 +3,10 @@
 (setq user-full-name "Gus Cantieni"
       user-mail-address "gus.cantieni@gmail.com")
 
-(setq doom-theme 'doom-gruvbox-light)
+(setq doom-theme 'modus-operandi-tinted
+      doom-font "JetBrainsMonoNL Nerd Font-12")
 
-(setq doom-font "CaskaydiaMono Nerd Font-18.0")
+;(setq doom-font "CaskaydiaMono Nerd Font-18.0")
 
 ;; Smartparens was giving me grief
 (remove-hook 'doom-first-buffer-hook #'smartparens-global-mode)
@@ -34,8 +35,8 @@
       "/" #'rg)
 
 ;; There's some intens popup rules we can use to customize popups.
-                                        ;(after! vterm
-                                        ;  (set-popup-rule! "*doom:vterm-popup:main" :size 0.25 :vslot -4 :select t :quit nil :ttl 0 :side 'right))
+;(after! vterm
+;  (set-popup-rule! "*doom:vterm-popup:main" :size 0.25 :vslot -4 :select t :quit nil :ttl 0 :side 'right))
 
 
 ;; attempt at getting the cursor to look right in the term
@@ -44,7 +45,6 @@
   :config
   (advice-add #'vterm--redraw :after (lambda (&rest args) (evil-refresh-cursor evil-state)))
   (add-hook 'vterm-mode-hook (lambda () (display-line-numbers-mode -1))))
-
 
 (map! :nv "," nil)
 (setq doom-localleader-key ",")
@@ -56,10 +56,13 @@
 
 (after! lsp
   (map! :map lsp-mode-map
+        :nm "g r" #'lsp-find-references ; TODO: why doesn't this work?
         :nvim "M-p" nil)
   (require 'dap-cpptools)
   (setq rustic-format-on-save t))
                                         ;(setq lsp-format-buffer-on-save '("dart")))
+
+(add-hook! 'prog-mode-hook #'which-function-mode)
 
 (after! org
   (setq org-agenda-files (quote ("~/notes/" "~/notes/work-journal/")))
@@ -74,26 +77,20 @@
   (setq org-stuck-projects '("+project/PROJ" ("NEXT") ("note") ""))
 
   (setq org-capture-templates
-        (quote (("i" "inbox" entry (file+headline "~/notes/notes.org" "Inbox")
-                 "* %?\n%U\n%a\n")
-                ("t" "today" entry (file+headline "~/notes/notes.org" "Tickler")
-                 "* NEXT %?\n  SCHEDULED: <%(format-time-string \"%Y-%m-%d\")>\n")
-                ("p" "project" entry (file+headline "~/notes/notes.org" "Projects")
-                 "* %? :project:\n%U\n%a\n")
-                ("c" "customization" entry (file+headline "~/notes/notes.org" "Customizations")
-                 "* TODO %? :easyfun:\n%U\n")
-                ("m" "Mr Testy" entry (file+headline "~/notes/notes.org" "Mr Testy")
-                 "* NEXT %? %u\n")
-                ("l" "Liaison request" entry (file+headline "~/notes/notes.org" "Liaison")
-                 "* NEXT %? %u\n")
-                ("h" "Habit" entry (file+headline "~/notes/notes.org" "Habits")
-                 "* NEXT %?\n%U\n%a\nSCHEDULED: %(format-time-string \"%<<%Y-%m-%d %a .+1d/3d>>\")\n:PROPERTIES:\n:STYLE: habit\n:REPEAT_TO_STATE: NEXT\n:END:\n")
-                ("f" "Flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                 "* Item :drill:\n%?\n** Answer\n" :empty-lines 1)
-                ("g" "hide1cloze flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                 "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: hide1cloze\n:END:\n%?\n" :empty-lines 1)
-                ("2" "2-sided flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
-                 "* Item :drill:\n:PROPERTIES:\n:DRILL_CARD_TYPE: twosided\n:END:\n** Front\n%?\n** Back\n" :empty-lines 1))))
+       (quote (("i" "Inbox" entry (file+headline "~/notes/notes.org" "Inbox")
+                "* %?\n%U\n%a\n")
+               ("t" "Today" entry (file+headline "~/notes/notes.org" "Tickler")
+                "* NEXT %?\n  SCHEDULED: <%(format-time-string \"%Y-%m-%d\")>\n")
+               ("p" "Project" entry (file+headline "~/notes/notes.org" "Projects")
+                "* PROJ %? :project:\n%U\n")
+               ("c" "Customization" entry (file+headline "~/notes/notes.org" "Customizations")
+                "* TODO %? :easyfun:\n%U\n")
+               ("m" "Mr Testy" entry (file+headline "~/notes/notes.org" "Mr Testy")
+                "* NEXT %? %u\n- link:\n- box:\n- path\n")
+               ("l" "Liaison request" entry (file+headline "~/notes/notes.org" "Liaison")
+                "* NEXT %? %u\n")
+               ("f" "Flashcard (org-drill)" entry (file+headline "~/notes/flashcards.org" "Ab Initio flashcards")
+                "* Item :drill:\n%?\n** Answer\n" :empty-lines 1))))
 
   (setq org-modules '(org-bibtex
                       ;; my additions
@@ -102,11 +99,13 @@
   (setq org-agenda-custom-commands
         '((" " "Agenda"
            ((agenda ""
-                    ((org-agenda-skip-function '(org-agenda-skip-entry-if 'tag "drill"))
-                     (org-agenda-span 'day)))  ;; The default agenda for today/week
+                    ((org-agenda-span 'day)
+                     (org-agenda-start-day nil)))  ;; The default agenda for today/week
 
             (tags-todo "-easyfun/+NEXT"
                        ((org-agenda-overriding-header "Tasks")))
+
+            (todo "WAIT" ((org-agenda-overriding-header "Waiting tasks")))
 
             (tags-todo "+easyfun/+NEXT"
                        ((org-agenda-overriding-header "Low energy/fallback tasks")))))

@@ -4,7 +4,7 @@ _G.gc_whichkey_enabled = true
 
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 vim.o.number = true
 vim.o.relativenumber = true
 vim.o.mouse = 'a'
@@ -42,18 +42,40 @@ vim.o.scrolloff = 10
 vim.o.confirm = true -- prompt instead of failing on save
 
 -- NOTE: expermental grep stuff, trying to get something close to emacs grep experience
---
 vim.o.grepprg = 'rg --vimgrep'
 
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+
+vim.keymap.set({ 'i', 's' }, '<Esc>', function()
+  vim.snippet.stop()
+  return '<Esc>'
+end, { expr = true })
+
 vim.keymap.set({ 'v', 'x', 'n' }, '<C-y>', '"+y', { desc = 'System clipboard yank.' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
--- TODO: maybe remove these
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+vim.keymap.set('n', '<leader>fs', '<cmd>:w<CR>', { desc = '[F]ile [s]ave' })
+vim.keymap.set('n', '<leader>w', '<cmd>cd %:h<cr>', { desc = 'C[W]D' })
+vim.keymap.set('i', 'kj', '<Esc>')
+vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('n', '<Tab>', '<C-w>w', { silent = true })
+-- bind A-o to "other window" in every mode
+-- TODO: these aren't working
+vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
+vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
+vim.keymap.set('t', '<A-o>', '<cmd>:!echo hi<CR>') -- [[<C-><C-N><C-w>w]], { silent = true })
+
+vim.keymap.set('n', '<leader>gb', function()
+  local file = vim.fn.expand '%:t' -- full path; use '%:p' for full name
+  local line = vim.fn.line '.'
+  local cmd = string.format('break %s:%d', file, line)
+  -- copy to system clipboard (+ register). Change '+' to '"' to copy to unnamed register.
+  vim.fn.setreg('+', cmd)
+  vim.notify('Copied to clipboard: ' .. cmd)
+end, { desc = 'Copy gdb break command for current line' })
+
+-- Go to last buffer
+vim.keymap.set('n', '<leader><tab>', '<cmd>b#<CR>', { desc = 'Switch to last buffer' })
 
 -- Go to last buffer
 vim.keymap.set('n', '<leader><tab>', '<cmd>b#<CR>', { desc = 'Switch to last buffer' })
@@ -85,10 +107,17 @@ rtp:prepend(lazypath)
 -- PLUGINS
 -- TODO: try some of these perhaps
 -- - [ ] iron repl run current file: https://github.com/Vigemus/iron.nvim?tab=readme-ov-file
--- - [ ] emacs-server like functionality: https://github.com/mhinz/neovim-remote
---
+-- - [ ] emacs-server like functionality: https://github.com/mhinz/neovim-remote  this would enable nvim-terminal oriented workflow which is pretty cool
+-- - [ ] toggle-term
 
 require('lazy').setup({
+  {
+    'NotAShelf/direnv.nvim',
+    config = function()
+      require('direnv').setup {}
+    end,
+  },
+
   'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
 
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
@@ -147,7 +176,11 @@ require('lazy').setup({
         --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
         --   },
         -- },
-        -- pickers = {}
+        pickers = {
+          buffers = {
+            sort_lastused = true,
+          },
+        },
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
@@ -163,7 +196,11 @@ require('lazy').setup({
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set('n', '<leader><leader>', builtin.find_files, { desc = '[S]earch all files' })
+      vim.keymap.set('n', '<leader>sf', function()
+        local file_dir = vim.fn.expand '%:h'
+        builtin.find_files { cwd = file_dir }
+      end, { desc = '[S]earch [f]iles from file dir' })
       -- This one is actually awesome, allows to re-access the previous list
       -- great for fuzzy-find etc.
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
@@ -172,9 +209,10 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
-      -- TODO: figure out how to list buffers based on when they were last visited
-      vim.keymap.set('n', '<leader>,', builtin.buffers, { desc = '[ ] Find existing buffers' })
-      -- TODO: add a picker for todo's, notes, fixmes, nocheckin
+      vim.keymap.set('n', '<leader>,', function()
+        builtin.buffers { sort_mru = true, ignore_current_buffer = true }
+      end, { desc = '[ ] Find existing buffers' })
+      vim.keymap.set('n', '<leader>st', '<cmd>TodoTelescope<CR>')
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -512,7 +550,39 @@ require('lazy').setup({
       },
     },
   },
+  {
+    'L3MON4D3/LuaSnip',
+    version = '2.*',
+    build = (function()
+      -- Build Step is needed for regex support in snippets.
+      -- This step is not supported in many windows environments.
+      -- Remove the below condition to re-enable on windows.
+      if vim.fn.has 'win32' == 1 or vim.fn.executable 'make' == 0 then
+        return
+      end
+      return 'make install_jsregexp'
+    end)(),
+    dependencies = {
+      -- `friendly-snippets` contains a variety of premade snippets.
+      --    See the README about individual language/framework/plugin snippets:
+      --    https://github.com/rafamadriz/friendly-snippets
+      -- {
+      --   'rafamadriz/friendly-snippets',
+      --   config = function()
+      --     require('luasnip.loaders.from_vscode').lazy_load()
+      --   end,
+      -- },
+    },
+    opts = {},
+    config = function()
+      local ls = require 'luasnip'
+      local s, t = ls.snippet, ls.text_node
 
+      -- add snippet for hanging forever for debugger to attach.
+      ls.add_snippets('c', { s('gwh', t 'int g = 1; while (g) { }') })
+      ls.add_snippets('cpp', { s('gwh', t 'int g = 1; while (g) { }') })
+    end,
+  },
   { -- Autocompletion
     'saghen/blink.cmp',
     event = 'VimEnter',
@@ -543,6 +613,44 @@ require('lazy').setup({
           -- },
         },
         opts = {},
+        -- See https://github.com/L3MON4D3/LuaSnip/issues/258#issuecomment-1429989436
+        config = function()
+          function leave_snippet()
+            if
+              ((vim.v.event.old_mode == 's' and vim.v.event.new_mode == 'n') or vim.v.event.old_mode == 'i')
+              and require('luasnip').session.current_nodes[vim.api.nvim_get_current_buf()]
+              and not require('luasnip').session.jump_active
+            then
+              require('luasnip').unlink_current()
+            end
+          end
+
+          -- TODO: figure out why both of these solutions are bad.
+          -- the first one makes me immediately leave snippet.
+          -- the second one simply doesn't work.
+          --
+          --  -- stop snippets when you leave to normal mode
+          --  Option #1
+          --vim.api.nvim_command [[
+          --   autocmd ModeChanged * lua leave_snippet()
+          --]]
+          -- See https://github.com/Saghen/blink.cmp/issues/1805 and ttps://github.com/L3MON4D3/LuaSnip/issues/258#issuecomment-1429989436
+          -- TODO: this doesn't work for some reason, but does seem superior
+          --
+          -- Option #2
+          --vim.keymap.set({ 'n', 's' }, '<Esc>', function()
+          --  vim.cmd 'noh'
+          --  --vim.snippet.stop()
+          --  leave_snippet()
+          --  return '<esc>'
+          --end, { silent = true, expr = true, desc = 'Escape and clear hlsearch/snippet' })
+          --
+          -- Option #3
+          -- vim.keymap.set({ "i", "s" }, "<Esc>", function()
+          --  vim.snippet.stop()
+          --  return "<Esc>"
+          -- end, { expr = true })
+        end,
       },
       'folke/lazydev.nvim',
     },
@@ -668,15 +776,31 @@ require('lazy').setup({
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
 
-      local files = require('mini.files').setup()
+      local MiniFiles = require 'mini.files'
+      MiniFiles.setup {}
+      --vim.keymap.set('n', '-', function() end, { desc = 'Open Mini Files' })
     end,
-    keys = { {
-      '<leader>d',
-      function()
-        require('mini.files').open()
-      end,
-      desc = 'Open directory',
-    } },
+    keys = {
+      {
+        '<leader>d',
+        function()
+          require('mini.files').open()
+        end,
+        desc = 'Open directory',
+      },
+      {
+        '-',
+        function()
+          local mf = require 'mini.files'
+          local name = vim.api.nvim_buf_get_name(0)
+          if name ~= '' and vim.loop.fs_stat(name) then
+            mf.open(name)
+          else
+            mf.open(vim.fn.getcwd())
+          end
+        end,
+      },
+    },
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
@@ -702,6 +826,39 @@ require('lazy').setup({
     --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+  },
+  { -- copypasta
+    'epwalsh/obsidian.nvim',
+    version = '*', -- recommended, use latest release instead of latest commit
+    lazy = true,
+    ft = 'markdown',
+    -- Replace the above line with this if you only want to load obsidian.nvim for markdown files in your vault:
+    -- event = {
+    --   -- If you want to use the home shortcut '~' here you need to call 'vim.fn.expand'.
+    --   -- E.g. "BufReadPre " .. vim.fn.expand "~" .. "/my-vault/*.md"
+    --   -- refer to `:h file-pattern` for more examples
+    --   "BufReadPre path/to/my-vault/*.md",
+    --   "BufNewFile path/to/my-vault/*.md",
+    -- },
+    dependencies = {
+      -- Required.
+      'nvim-lua/plenary.nvim',
+
+      -- see below for full list of optional dependencies 👇
+    },
+    config = function()
+      vim.o.conceallevel = 2
+    end,
+    opts = {
+      workspaces = {
+        {
+          name = 'main',
+          path = '~/obsidian/',
+        },
+      },
+
+      -- see below for full list of options 👇
+    },
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the

@@ -1,24 +1,32 @@
 # Default path stuff
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 
+source "$HOME/.abinitio_bashrc"
+
 # Tool customization
 export PATH=/home/gcantieni/.config/emacs/bin:/opt/nvim-linux-x86_64/bin:$PATH
 
 # User customization
-export PATH=$HOME/.local/bin:/u/gcantieni/bin/lin:/home/gcantieni/.local/bin:$PATH
+export PATH=$HOME/bin:$HOME/.local/bin:/u/gcantieni/bin:/home/gcantieni/.local/bin:$PATH
 
-source "$HOME/.abinitio_bashrc"
 
 # Expand default history file size to unlimited so you never lose terminal history.
 # Commented due to issue with ksh.
 export HISTFILESIZE=1000000000
 export HISTSIZE=1000000000
 
-eval "$(direnv hook bash)"
+## Colorize the ls output ##
+alias ls='ls --color=auto'
+
+## Use a long listing format ##
+alias ll='ls -la'
+
+## Show hidden files ##
+alias l.='ls -d .* --color=auto'
 
 export EDITOR=nvim
 
-alias v=$EDITOR
+alias v='$EDITOR'
 alias vg='rg --files --hidden --glob "!{.git,node_modules}/*" | fzf --preview "bat --style=numbers --color=always {} | head -n 100" | xargs -o nvim'
 
 alias c=code
@@ -26,11 +34,7 @@ alias c=code
 alias .1='cd /disk1/sand/base-trunk-1/mpower/src'
 alias .2='cd /disk1/sand/base-trunk-2/mpower/src'
 
-alias sbash='source "$HOME/.bashrc"'
-alias vbash='nvim "$HOME/.bashrc"'
-alias vnvim='nvim "$HOME/.config/nvim/lua/config/options.lua"'
-
-alias gc-path="echo $PATH | tr ':' '\n'"
+alias src='source "$HOME/.bashrc"'
 
 alias fd="fdfind"
 
@@ -38,15 +42,30 @@ alias rmtmp="find /tmp -mindepth 1 -delete" # don't rm -rf
 
 alias dots='/usr/bin/git --git-dir "$HOME/.dots/" --work-tree "$HOME"'
 
+alias projcd='cd "$PROJ"'
+alias projn='$EDITOR $PROJ/notes.txt'
+alias projt='$EDITOR $PROJ/todo.txt'
+alias gdb='gdb -q'
+
 # Tools
 
 # fzf integration
 [[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]] && source /usr/share/doc/fzf/examples/key-bindings.bash 
 
+bind '"\C-o": "$(find \"$PWD\" -type d | fzf)\e\C-e"'
+
 # Only load Liquid Prompt in interactive shells, not from a script or from scp
 #[[ $- = *i* ]] && source $HOME/repos/liquidprompt/liquidprompt
 
-# this seemed to be missing some chars--annoying
+function y() {
+    local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+    yazi "$@" --cwd-file="$tmp"
+    IFS= read -r -d '' cwd < "$tmp"
+    [ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
+    rm -f -- "$tmp"
+}
+
+eval "$(direnv hook bash)"
 
 vterm_printf() {
     if [ -n "$TMUX" ] \
@@ -78,4 +97,6 @@ PS1="$(bold_blue '[')\u:\w$(bold_blue ']')\n\\$ "
 
 PS1=$PS1'\[$(vterm_prompt_end)\]'
 
+# Jump anywhere
 command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
+. "$HOME/.cargo/env"
