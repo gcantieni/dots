@@ -61,8 +61,14 @@ if status is-interactive
 
   complete -c dots -a '(complete -C"commandline -ct")'
 
+  if set -q NVIM
+    set -x EDITOR 'nvr'
+  else
+    set -x EDITOR 'nvim'
+  end
+
   alias lex="ssh -L 11000:gcantieni-l2.abinitio.com:4000 gcantieni@ssh-lex.abinitio.com"
   alias rdp="ssh -i /Users/gus/.ssh/id_rsa -L 12000:gcantieni-l2.abinitio.com:3389 gcantieni@ssh-lex.abinitio.com"
   alias src="source ~/.config/fish/config.fish"
-  alias v='nvim'
+  alias v='$EDITOR'
 end
