@@ -1,2 +1,2 @@
 export EDITOR=nvr
-direnv reload
+direnv reload 2>/dev/null
