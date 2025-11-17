@@ -1,7 +1,7 @@
 # Default path stuff
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 
-source "$HOME/.abinitio_bashrc"
+source "$HOME/.localrc"
 
 # Tool customization
 export PATH=/home/gcantieni/.config/emacs/bin:/opt/nvim-linux-x86_64/bin:$PATH
