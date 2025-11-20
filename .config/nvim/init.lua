@@ -59,6 +59,15 @@ vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
 vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
 vim.keymap.set('t', '<A-o>', '<cmd>:!echo hi<CR>') -- [[<C-><C-N><C-w>w]], { silent = true })
 
+-- Automatically reread file contents as its written
+vim.o.autoread = true
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
+  command = "if mode() != 'c' | checktime | endif",
+})
+vim.api.nvim_create_autocmd('FileChangedShellPost', {
+  command = "echohl WarningMsg | echo 'File changed on disk. Buffer reloaded.' | echohl None",
+})
+
 vim.api.nvim_create_autocmd('TermOpen', {
   pattern = 'term://*',
   callback = function(args)
