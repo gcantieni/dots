@@ -1,7 +1,3 @@
--- TODO: use these to optionally disable these intrusive modules
-_G.gc_lsp_enabled = true
-_G.gc_whichkey_enabled = true
-
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 vim.g.have_nerd_font = true
