@@ -40,6 +40,25 @@ vim.o.confirm = true -- prompt instead of failing on save
 -- NOTE: expermental grep stuff, trying to get something close to emacs grep experience
 vim.o.grepprg = 'rg --vimgrep'
 
+---- Load all Lua files in ~/.config/lua/core
+local config_dir = vim.fn.stdpath 'config'
+local core_dir = config_dir .. '/lua/core'
+
+-- can be turned on for debugging purposes
+--print('[custom-loader] config_dir = ' .. config_dir)
+--print('[custom-loader] core_dir = ' .. core_dir)
+--print('[custom-loader] isdir = ' .. vim.fn.isdirectory(core_dir))
+
+local files = vim.fn.glob(core_dir .. '/*.lua', false, true)
+--print('[custom-loader] glob count = ' .. #files)
+
+for _, f in ipairs(files) do
+  --print('[custom-loader] attempting to load: ' .. f)
+  local mod = 'core.' .. vim.fn.fnamemodify(f, ':t:r')
+  local ok, err = pcall(require, mod)
+  --print('[custom-loader] require(' .. mod .. ') = ', ok, err)
+end
+
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 vim.keymap.set({ 'i', 's' }, '<Esc>', function()
@@ -69,23 +88,6 @@ vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHo
 })
 vim.api.nvim_create_autocmd('FileChangedShellPost', {
   command = "echohl WarningMsg | echo 'File changed on disk. Buffer reloaded.' | echohl None",
-})
-
-vim.api.nvim_create_autocmd('TermOpen', {
-  pattern = 'term://*',
-  callback = function(args)
-    -- only do this for interactive shell terminals
-    local name = vim.api.nvim_buf_get_name(args.buf)
-    local shell = vim.fn.fnamemodify(vim.o.shell, ':t')
-    if name:match(shell) then
-      local job = vim.b[args.buf].terminal_job_id
-      if job then
-        vim.defer_fn(function()
-          vim.api.nvim_chan_send(job, 'source ~/.config/nvim/bashrc_nvim\n')
-        end, 50)
-      end
-    end
-  end,
 })
 
 vim.keymap.set('n', '<leader>gb', function()
