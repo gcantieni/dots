@@ -68,18 +68,18 @@ end, { expr = true })
 
 vim.keymap.set({ 'v', 'x', 'n' }, '<C-y>', '"+y', { desc = 'System clipboard yank.' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
-vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('n', '<leader>fs', '<cmd>:w<CR>', { desc = '[F]ile [s]ave' })
 vim.keymap.set('n', '<leader>w', '<cmd>cd %:h<cr>', { desc = 'C[W]D' })
 vim.keymap.set('i', 'kj', '<Esc>')
 vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('n', '<Tab>', '<C-w>w', { silent = true })
+
 -- bind A-o to "other window" in every mode
--- TODO: these aren't working
 vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
 vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
-vim.keymap.set('t', '<A-o>', '<cmd>:!echo hi<CR>') -- [[<C-><C-N><C-w>w]], { silent = true })
+vim.keymap.set('t', '<A-o>', '<C-\\><C-o><C-w>w', { silent = true })
 
 -- Automatically reread file contents as its written
 vim.o.autoread = true
