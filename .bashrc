@@ -9,6 +9,12 @@ export PATH=/home/gcantieni/.config/emacs/bin:/opt/nvim-linux-x86_64/bin:$PATH
 # User customization
 export PATH=$HOME/bin:$HOME/.local/bin:/u/gcantieni/bin:/home/gcantieni/.local/bin:$PATH
 
+# Track interactive shells so we can gate readline-dependent setup
+case $- in
+    *i*) INTERACTIVE_SHELL=1 ;;
+    *)   INTERACTIVE_SHELL=0 ;;
+esac
+
 
 # Expand default history file size to unlimited so you never lose terminal history.
 # Commented due to issue with ksh.
@@ -50,9 +56,10 @@ alias gdb='gdb -q'
 # Tools
 
 # fzf integration
-[[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]] && source /usr/share/doc/fzf/examples/key-bindings.bash 
-
-bind '"\C-o": "$(find \"$PWD\" -type d | fzf)\e\C-e"'
+if [[ $INTERACTIVE_SHELL -eq 1 ]]; then
+    [[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]] && source /usr/share/doc/fzf/examples/key-bindings.bash
+    bind '"\C-o": "$(find \"$PWD\" -type d | fzf)\e\C-e"'
+fi
 
 # Only load Liquid Prompt in interactive shells, not from a script or from scp
 #[[ $- = *i* ]] && source $HOME/repos/liquidprompt/liquidprompt
@@ -86,16 +93,17 @@ vterm_prompt_end() {
     vterm_printf "51;A$(whoami)@$(hostname):$(pwd)"
 }
 
-bold=$(tput bold)
-blue=$(tput setaf 4)
-reset=$(tput sgr0)
-bold_blue () {
-    echo "\[$bold\]\[$blue\]$1\[$reset\]\[$reset\]"
-}
+if [[ $INTERACTIVE_SHELL -eq 1 ]]; then
+    bold=$(tput bold)
+    blue=$(tput setaf 4)
+    reset=$(tput sgr0)
+    bold_blue () {
+        echo "\[$bold\]\[$blue\]$1\[$reset\]\[$reset\]"
+    }
 
-PS1="$(bold_blue '[')\u:\w$(bold_blue ']')\n\\$ "
-
-PS1=$PS1'\[$(vterm_prompt_end)\]'
+    PS1="$(bold_blue '[')\u:\w$(bold_blue ']')\n\\$ "
+    PS1=$PS1'\[$(vterm_prompt_end)\]'
+fi
 
 # Jump anywhere
 command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
