@@ -129,9 +129,8 @@ rtp:prepend(lazypath)
 
 -- PLUGINS
 -- TODO: try some of these perhaps
--- - [ ] iron repl run current file: https://github.com/Vigemus/iron.nvim?tab=readme-ov-file
--- - [ ] emacs-server like functionality: https://github.com/mhinz/neovim-remote  this would enable nvim-terminal oriented workflow which is pretty cool
--- - [ ] toggle-term
+-- - iron repl run current file: https://github.com/Vigemus/iron.nvim?tab=readme-ov-file
+-- - toggle-term
 
 -- If a plugin spec hints at getting too long, it goes in a file under
 -- lua/plugins.
