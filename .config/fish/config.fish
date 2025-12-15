@@ -68,8 +68,10 @@ if status is-interactive
     set -x EDITOR 'nvim'
   end
 
-  alias lex="ssh -L 11000:gcantieni-l2.abinitio.com:4000 gcantieni@ssh-lex.abinitio.com"
-  alias rdp="ssh -i /Users/gus/.ssh/id_rsa -L 12000:gcantieni-l2.abinitio.com:3389 gcantieni@ssh-lex.abinitio.com"
   alias src="source ~/.config/fish/config.fish"
   alias v='$EDITOR'
+
+  if test -f ~/.config/fish/private.fish
+    source ~/.config/fish/private.fish
+  end
 end
