@@ -74,6 +74,30 @@ vim.keymap.set('n', '<leader>w', '<cmd>cd %:h<cr>', { desc = 'C[W]D' })
 vim.keymap.set('i', 'kj', '<Esc>')
 vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+
+vim.api.nvim_create_user_command('SyncTermCwd', function()
+  local cwd = vim.b.terminal_cwd
+  if cwd and cwd ~= '' then
+    vim.cmd('cd ' .. cwd)
+    print('Synced nvim cwd to:', cwd)
+  else
+    print 'Not a terminal buffer or cwd unavailable'
+  end
+end, {})
+
+-- Smart <leader>w mapping:
+-- - normal buffer  → cd %:h
+-- - terminal buffer → SyncTermCwd
+vim.keymap.set('n', '<leader>w', function()
+  if vim.bo.buftype == 'terminal' then
+    vim.cmd 'SyncTermCwd'
+  else
+    -- equivalent to :cd %:h
+    vim.cmd 'cd %:h'
+    print('cd to ' .. vim.fn.expand '%:h')
+  end
+end, { desc = 'C[W]D (buffer dir or SyncTermCwd in terminal)' })
+
 vim.keymap.set('n', '<Tab>', '<C-w>w', { silent = true })
 
 -- bind A-o to "other window" in every mode
