@@ -34,7 +34,6 @@ export EDITOR=nvim
 if [ -n "$NVIM" ]; then
   export EDITOR=nvr
   direnv reload 2>/dev/null
-  #source ~/.config/nvim/bashrc_nvim >/dev/null 2>&1
 fi
 
 alias v='$EDITOR'
