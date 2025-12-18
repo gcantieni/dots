@@ -68,6 +68,8 @@ if status is-interactive
     set -x EDITOR 'nvim'
   end
 
+  alias nd='nvr -c "cd $PWD"'
+
   alias src="source ~/.config/fish/config.fish"
   alias v='$EDITOR'
 
