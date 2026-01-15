@@ -40,6 +40,26 @@ vim.o.confirm = true -- prompt instead of failing on save
 -- NOTE: expermental grep stuff, trying to get something close to emacs grep experience
 vim.o.grepprg = 'rg --vimgrep'
 
+-- osc52 excape sequence standard for yanking to system clipbaord
+-- must be supported by terminal emulator.
+-- vim.g.loaded_clipboard_provider = nil
+
+-- Use system clipboard (and over SSH+tmux this will go via OSC 52)
+vim.opt.clipboard = 'unnamedplus'
+
+-- Force OSC 52 provider
+vim.g.clipboard = {
+  name = 'OSC 52',
+  copy = {
+    ['+'] = require('vim.ui.clipboard.osc52').copy '+',
+    ['*'] = require('vim.ui.clipboard.osc52').copy '*',
+  },
+  paste = {
+    ['+'] = require('vim.ui.clipboard.osc52').paste '+',
+    ['*'] = require('vim.ui.clipboard.osc52').paste '*',
+  },
+}
+
 ---- Load all Lua files in ~/.config/lua/core
 local config_dir = vim.fn.stdpath 'config'
 local core_dir = config_dir .. '/lua/core'
