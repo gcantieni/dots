@@ -60,6 +60,18 @@ vim.g.clipboard = {
   },
 }
 
+-- Prevent quitting out of multiple nvim buffers accidentally
+vim.api.nvim_create_user_command('SafeQuit', function()
+  local buffers = vim.fn.len(vim.fn.getbufinfo { buflisted = 1 })
+  if buffers > 1 then
+    print 'Multiple buffers open — use :qa to quit'
+  else
+    vim.cmd 'q'
+  end
+end, {})
+
+vim.cmd 'cnoreabbrev q SafeQuit'
+
 ---- Load all Lua files in ~/.config/lua/core
 local config_dir = vim.fn.stdpath 'config'
 local core_dir = config_dir .. '/lua/core'
