@@ -107,6 +107,23 @@ vim.keymap.set('i', 'kj', '<Esc>')
 vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
+local function open_proj_file(file)
+  local base = vim.fn.getenv 'PROJ'
+  if base == '' then
+    vim.notify('PROJ is not set', vim.log.levels.ERROR)
+    return
+  end
+  vim.cmd('edit ' .. base .. '/' .. file)
+end
+
+-- j for Journal, or proJ
+vim.keymap.set('n', '<leader>jn', function()
+  open_proj_file 'notes.txt'
+end, { desc = 'Open notes' })
+vim.keymap.set('n', '<leader>jt', function()
+  open_proj_file 'todo.txt'
+end, { desc = 'Open todos' })
+
 vim.api.nvim_create_user_command('SyncTermCwd', function()
   local cwd = vim.b.terminal_cwd
   if cwd and cwd ~= '' then
