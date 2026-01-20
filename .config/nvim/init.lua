@@ -147,8 +147,6 @@ vim.keymap.set('n', '<leader>w', function()
   end
 end, { desc = 'C[W]D (buffer dir or SyncTermCwd in terminal)' })
 
-vim.keymap.set('n', '<Tab>', '<C-w>w', { silent = true })
-
 -- bind A-o to "other window" in every mode
 vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
 vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
