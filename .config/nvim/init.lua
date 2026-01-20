@@ -99,7 +99,7 @@ vim.keymap.set({ 'i', 's' }, '<Esc>', function()
 end, { expr = true })
 
 vim.keymap.set({ 'v', 'x', 'n' }, '<C-y>', '"+y', { desc = 'System clipboard yank.' })
-vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+vim.keymap.set('n', '<leader>qo', vim.diagnostic.setloclist, { desc = '[Q]uickfix list [O]pen' })
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('n', '<leader>fs', '<cmd>:w<CR>', { desc = '[F]ile [s]ave' })
 vim.keymap.set('n', '<leader>w', '<cmd>cd %:h<cr>', { desc = 'C[W]D' })
