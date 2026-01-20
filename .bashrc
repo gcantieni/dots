@@ -33,10 +33,11 @@ alias l='ls -d .* --color=auto'
 export EDITOR=nvim
 if [ -n "$NVIM" ]; then
   export EDITOR=nvr
+  export P4EDITOR=nvr
   direnv reload 2>/dev/null
 fi
 
-alias nd='nvr -c "cd $PWD"'
+alias vd='nvr -c "cd $PWD"'
 
 alias v='$EDITOR'
 alias vg='rg --files --hidden --glob "!{.git,node_modules}/*" | fzf --preview "bat --style=numbers --color=always {} | head -n 100" | xargs -o nvim'
