@@ -1,0 +1,25 @@
+#!/bin/bash
+
+current_pane=$(tmux display-message -p '#{pane_id}')
+
+out=$(tmux capture-pane -t $current_pane -p -S 0)
+
+errs=$(tmux capture-pane -t $current_pane -p -S 0 \
+  | grep -oE '^[a-zA-Z0-9_.-]+\.(cpp|h):[0-9]+:[0-9]+: error' \
+  | cut -d ':' -f1,2)
+
+base_dir=$(tmux capture-pane -t $current_pane -p -S -1000 | grep 'Entering directory' | tail -1 | cut -d\' -f2)
+
+[ -z "$base_dir" ] && tmux display-message "no base dir found" && exit 1
+[ -z "$errs" ] && tmux display-message "no error found" && exit 1
+
+for err in $errs
+do
+  err_file=$(echo $err | cut -d: -f1)
+  err_num=$(echo $err | cut -d: -f2)
+
+  tmux new-window "nvim +$err_num $base_dir/$err_file"
+  #nvim +$err_num $base_dir/$err_file
+done
+
+

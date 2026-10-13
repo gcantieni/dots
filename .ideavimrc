@@ -1,0 +1,10 @@
+set ignorecase
+set smartcase
+
+let mapleader=" "
+
+inoremap kj <Esc>
+
+nnoremap <leader><leader> :action GotoFile<CR>
+nnoremap <leader>,        :action RecentFiles<CR> 
+nnoremap <leader>sg       :action FindInPath<CR> 

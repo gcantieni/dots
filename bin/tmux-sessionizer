@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+if [[ $# -eq 1 ]]; then
+    selected=$1
+else
+  selected=$(find ~/proj -mindepth 1 -maxdepth 1 -type d | fzf)
+    # [[ $selected ]] && selected="$HOME/$selected"
+fi
+
+if [[ -z $selected ]]; then
+    exit 0
+fi
+
+
+selected_name=$(basename "$selected" | tr . _)
+proj_dir=$selected
+
+# Allow proj to override base directory.
+# .proj is bash-sourceable key=value (dir=..., build=..., test=...).
+# Legacy format: a single line containing the path.
+if [[ -e $selected/.proj ]]; then
+   proj_file=$selected/.proj
+   if [[ $(wc -l < "$proj_file") -le 1 ]] && ! grep -q '=' "$proj_file"; then
+     selected=$(cat "$proj_file")
+   else
+     dir=
+     branch=
+     # shellcheck disable=SC1090
+     source "$proj_file"
+     [[ -n $dir ]] && selected=$dir
+     # A branch= project lives wherever that branch is checked out; gc-proj
+     # knows how to find it, when it's installed.
+     if [[ -n $branch ]] && command -v gc-proj >/dev/null; then
+       resolved=$(gc-proj dir "$proj_dir" 2>/dev/null)
+       [[ -n $resolved ]] && selected=$resolved
+     fi
+   fi
+fi
+
+task_env=()
+if [[ -L $proj_dir/current ]]; then
+    selected=$(readlink -f "$proj_dir/current")
+    task_env=(-e TASK="$selected")
+fi
+
+tmux_running=$(pgrep tmux)
+if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
+    tmux new-session -s $selected_name -c $selected -e PROJ="$proj_dir" "${task_env[@]}"
+    exit 0
+fi
+
+if ! tmux has-session -t=$selected_name 2> /dev/null; then
+    tmux new-session -ds $selected_name -c $selected -e PROJ="$proj_dir" "${task_env[@]}"
+fi
+
+
+# Try switching sessions, but if that doesn't work, attach.
+if ! tmux switch-client -t $selected_name 2> /dev/null; then 
+    tmux a -t $selected_name 
+fi

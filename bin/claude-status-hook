@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# Record a Claude agent's state for the tmux `claude-status` overview.
+# Invoked from Claude Code hooks: `claude-status-hook <state>`, with the hook
+# JSON payload on stdin. We record one entry per tmux pane. Foreground agents
+# expose $TMUX_PANE directly; background/"auto" daemon agents run paneless, so we
+# recover their owning pane by walking the process ancestry (see resolve_pane).
+#
+# states: idle | busy | done | waiting | end (end removes the record)
+
+state=${1:-idle}
+status_dir="$HOME/.claude/status"
+
+# Publish the summary and redraw now, instead of waiting up to `status-interval`
+# seconds. We can't do this with a status-right #() job: tmux only re-runs #()
+# jobs on the status-interval timer, and refresh-client redraws from the job's
+# *cached* output -- so a pull-based bar lags a state change by up to a full
+# interval. Instead we push: write the summary into a global @claude_status
+# option (status-right expands it via #{E:@claude_status}, which re-runs on every
+# redraw with no cache) and then refresh every attached client. The option is
+# global because the summary aggregates all sessions.
+refresh_status() {
+  tmux set-option -gq @claude_status "$("$HOME/bin/claude-status" --line 2>/dev/null)"
+  local c
+  for c in $(tmux list-clients -F '#{client_name}' 2>/dev/null); do
+    tmux refresh-client -S -t "$c" 2>/dev/null
+  done
+}
+
+# Resolve the tmux pane this hook belongs to. Foreground agents have $TMUX_PANE
+# set (fast path). Background/"auto" daemon agents are paneless, but their process
+# ancestry still leads back to the pane's shell -- walk parents until a pid matches
+# a tmux pane_pid. Echoes the pane id and returns 0; returns 1 if not in tmux.
+resolve_pane() {
+  if [[ -n $TMUX_PANE ]]; then
+    printf '%s' "$TMUX_PANE"
+    return 0
+  fi
+  local map
+  map=$(tmux list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null) || return 1
+  [[ -z $map ]] && return 1
+  local pid=$PPID hop hit
+  for hop in $(seq 1 40); do
+    [[ -z $pid || $pid -le 1 ]] && break
+    hit=$(awk -v p="$pid" '$1==p {print $2; exit}' <<<"$map")
+    if [[ -n $hit ]]; then
+      printf '%s' "$hit"
+      return 0
+    fi
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  done
+  return 1
+}
+
+payload=$(cat)
+session_id=$(printf '%s' "$payload" | jq -r '.session_id // empty')
+[[ -z $session_id ]] && exit 0
+
+# The transcript is used below for the rolling summary, the bg marker, and the
+# sessionKind-aware SessionEnd. Extract it once, up front.
+transcript=$(printf '%s' "$payload" | jq -r '.transcript_path // empty')
+
+# Which pane does this agent live in? Bail if we're not in tmux at all.
+pane=$(resolve_pane) || exit 0
+[[ -z $pane ]] && exit 0
+
+# One record per pane -- this collapses a chat's interactive + bg-daemon session
+# twins (two session ids, same pane) into a single row.
+file="$status_dir/pane-${pane}.json"
+# Drop any legacy session-keyed record this session wrote before the switch.
+rm -f "$status_dir/${session_id}.json"
+
+if [[ $state == end ]]; then
+  # A bg/auto daemon session ending is NOT the end of the pane's chat -- the
+  # interactive twin still owns the pane. Only remove the record when a real
+  # (interactive/foreground) session ends.
+  if [[ -n $transcript && -f $transcript ]] && grep -q '"sessionKind":"bg"' "$transcript"; then
+    refresh_status
+    exit 0
+  fi
+  rm -f "$file"
+  refresh_status
+  exit 0
+fi
+
+# The Notification hook is wired to a fixed "waiting" in settings.json, but the
+# Notification event fires for two very different things: a genuine
+# needs-attention prompt (permission_prompt / elicitation_*) and a plain idle
+# prompt ("Claude is waiting for your input", type idle_prompt) that fires ~30-60s
+# after a turn -- including right after /clear. Only the former deserves the
+# yellow "waiting" glyph; the idle prompt is just idle. Prefer a structured type
+# field if the payload has one, else fall back to the message text.
+if [[ $state == waiting ]]; then
+  ntype=$(printf '%s' "$payload" | jq -r '.notification_type // .trigger // empty')
+  message=$(printf '%s' "$payload" | jq -r '.message // empty')
+  if [[ $ntype == idle_prompt ]] || { [[ -z $ntype ]] && [[ $message == *"waiting for your input"* ]]; }; then
+    # Don't clobber a freshly-finished turn: keep "done" (✔) visible, otherwise
+    # this is just an idle session.
+    prev=$(jq -r '.state // empty' "$file" 2>/dev/null)
+    if [[ $prev == done ]]; then state=done; else state=idle; fi
+  fi
+fi
+
+cwd=$(printf '%s' "$payload" | jq -r '.cwd // empty')
+[[ -z $cwd ]] && cwd=$PWD
+
+# Rolling chat summary: Claude Code writes `ai-title` records into the transcript
+# and rewrites them as the chat evolves (like claude.ai's sidebar title). Grab the
+# latest. Fall back to whatever summary the previous record held, so a hook that
+# fires before a title exists doesn't blank it.
+summary=""
+if [[ -n $transcript && -f $transcript ]]; then
+  summary=$(tac "$transcript" 2>/dev/null | grep -m1 '"type":"ai-title"' \
+            | jq -r '.aiTitle // empty' 2>/dev/null)
+fi
+[[ -z $summary ]] && summary=$(jq -r '.summary // empty' "$file" 2>/dev/null)
+
+# Mark background/"auto" (daemon) chats so the overview can flag them.
+kind=""
+if [[ -n $transcript && -f $transcript ]] && grep -q '"sessionKind":"bg"' "$transcript"; then
+  kind=bg
+fi
+
+# Pane -> tmux coordinates. If the pane is gone, drop the record.
+coords=$(tmux display-message -t "$pane" -p \
+  '#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}' 2>/dev/null) || {
+  rm -f "$file"
+  exit 0
+}
+IFS=$'\t' read -r tmux_session window_index window_name <<<"$coords"
+
+# Prefer the project name; fall back to the cwd basename.
+project=${PROJ:+$(basename "$PROJ")}
+[[ -z $project ]] && project=$(basename "$cwd")
+
+# Cross-twin no-clobber guard: the interactive + bg-daemon twins share this pane's
+# record. A passive "idle" from one must not clobber a *fresh* active turn the
+# other is running. A stale busy (dead daemon) ages out after 180s so idle can
+# reclaim the pane -- self-healing.
+if [[ -f $file ]]; then
+  read -r prev_state prev_sid prev_ts < <(jq -r '[.state, .session_id, (.ts|tostring)] | @tsv' "$file" 2>/dev/null)
+  if [[ $prev_sid != "$session_id" && ( $prev_state == busy || $prev_state == waiting ) \
+        && $state == idle && $(( $(date +%s) - ${prev_ts:-0} )) -lt 180 ]]; then
+    exit 0
+  fi
+fi
+
+mkdir -p "$status_dir"
+jq -n \
+  --arg session_id "$session_id" \
+  --arg pane "$pane" \
+  --arg tmux_session "$tmux_session" \
+  --arg window_index "$window_index" \
+  --arg window_name "$window_name" \
+  --arg cwd "$cwd" \
+  --arg project "$project" \
+  --arg state "$state" \
+  --arg summary "$summary" \
+  --arg kind "$kind" \
+  --argjson ts "$(date +%s)" \
+  '{$session_id, $pane, $tmux_session, $window_index, $window_name, $cwd, $project, $state, $summary, $kind, $ts}' \
+  >"$file"
+
+refresh_status

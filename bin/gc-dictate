@@ -1,0 +1,371 @@
+#!/usr/bin/env bash
+# Local speech-to-text via whisper.cpp. Toggle-driven: the first invocation
+# starts recording, the second stops it, transcribes, and delivers the text.
+#
+# Delivery modes:
+#   (default)  bracketed-paste into the tmux pane that started the recording,
+#              without submitting, so you can edit before hitting Enter.
+#   --clip     copy to the X clipboard
+#   --stdout   print to stdout (used by the nvim binding)
+#   --xpaste   copy to the X clipboard, then synthesize Ctrl-V into whatever
+#              window has focus (used by the GNOME hotkey, for browsers)
+#
+# Jargon handling lives in ~/.config/gc-dictate/: vocab.txt biases whisper's
+# decoding, fixups.txt rewrites the finished text. `--redo` re-transcribes the
+# last recording through both, for tuning them without speaking again.
+#
+# Recording is raw PCM from `parec` rather than a WAV writer, so a killed
+# recorder can never leave a truncated header behind; ffmpeg wraps it after.
+
+set -uo pipefail
+
+WHISPER_DIR="${GC_WHISPER_DIR:-$HOME/src/whisper.cpp}"
+WHISPER_BIN="${GC_WHISPER_BIN:-$WHISPER_DIR/build/bin/whisper-cli}"
+WHISPER_MODEL="${GC_WHISPER_MODEL:-$WHISPER_DIR/models/ggml-small.en.bin}"
+WHISPER_THREADS="${GC_WHISPER_THREADS:-8}"
+# Silero VAD. Without it whisper reliably hallucinates filler ("you",
+# "Thank you.") out of silence, which is fatal for push-to-talk.
+VAD_MODEL="${GC_WHISPER_VAD_MODEL:-$WHISPER_DIR/models/ggml-silero-v6.2.0.bin}"
+
+CONFIG_DIR="${GC_DICTATE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gc-dictate}"
+VOCAB_FILE="$CONFIG_DIR/vocab.txt"
+FIXUPS_FILE="$CONFIG_DIR/fixups.txt"
+
+STATE_DIR="${XDG_RUNTIME_DIR:-/tmp}/gc-dictate"
+PID_FILE="$STATE_DIR/recorder.pid"
+META_FILE="$STATE_DIR/recorder.meta"
+RAW_FILE="$STATE_DIR/take.pcm"
+WAV_FILE="$STATE_DIR/take.wav"
+
+MAX_SECONDS="${GC_DICTATE_MAX_SECONDS:-300}"
+
+# Which mic to capture from. The PulseAudio default follows whatever was plugged
+# in last, which is regularly the wrong thing on a box with several headsets and
+# a webcam; prefer the headset by name and only fall back to the default.
+SOURCE_MATCH="${GC_DICTATE_SOURCE_MATCH:-Logitech_Inc_Logitech_H570e}"
+
+mkdir -p "$STATE_DIR"
+
+die() {
+    notify "gc-dictate: $*"
+    exit 1
+}
+
+# Status-bar indicator, mirroring how claude-status-hook pushes @claude_status.
+set_indicator() {
+    if [ -z "${TMUX:-}" ]; then
+        return
+    fi
+    tmux set-option -g @dictate_status "$1" 2>/dev/null
+    tmux refresh-client -S 2>/dev/null
+}
+
+notify() {
+    if [ -n "${TMUX:-}" ]; then
+        tmux display-message "$1"
+    elif command -v notify-send >/dev/null 2>&1; then
+        # The synchronous hint makes each message replace the previous one
+        # instead of stacking up a column of toasts.
+        notify-send -t 2500 \
+            -h string:x-canonical-private-synchronous:gc-dictate \
+            "dictate" "$1"
+    else
+        echo "$1" >&2
+    fi
+}
+
+recorder_pid() {
+    if [ ! -f "$PID_FILE" ]; then
+        return 1
+    fi
+    local pid
+    pid=$(cat "$PID_FILE" 2>/dev/null)
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        return 1
+    fi
+    printf '%s' "$pid"
+}
+
+# An explicit override wins, otherwise the preferred headset if it is connected.
+# Empty output means "let parec pick the PulseAudio default".
+resolve_source() {
+    if [ -n "${GC_DICTATE_SOURCE:-}" ]; then
+        printf '%s' "$GC_DICTATE_SOURCE"
+        return
+    fi
+    pactl list short sources 2>/dev/null \
+        | awk -v pat="$SOURCE_MATCH" '$2 ~ pat && $2 !~ /\.monitor$/ { print $2; exit }'
+}
+
+start_recording() {
+    local mode="$1" target="$2"
+
+    command -v parec >/dev/null || die "parec not found (install pulseaudio-utils)"
+    [ -x "$WHISPER_BIN" ] || die "whisper-cli not built at $WHISPER_BIN"
+    [ -f "$WHISPER_MODEL" ] || die "model not found at $WHISPER_MODEL"
+
+    : > "$RAW_FILE"
+
+    local -a parec_args=(--format=s16le --rate=16000 --channels=1 --raw)
+    local source
+    source=$(resolve_source)
+    if [ -n "$source" ]; then
+        parec_args+=(--device="$source")
+    fi
+
+    parec "${parec_args[@]}" > "$RAW_FILE" 2>/dev/null &
+    local pid=$!
+    echo "$pid" > "$PID_FILE"
+    printf '%s\n%s\n' "$mode" "$target" > "$META_FILE"
+
+    # Backstop so a forgotten recording can't fill the disk.
+    ( sleep "$MAX_SECONDS"; kill "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+
+    set_indicator "#[fg=red,bold]● REC #[default]"
+    notify "dictate: recording — press the same key again to stop"
+}
+
+# whisper treats the initial prompt as text preceding the audio, so listing
+# jargon there biases decoding toward those spellings. It imitates the prompt's
+# *style* as well: a bare comma list yields output stripped of capitalization
+# and punctuation, which is why the terms are wrapped in a real sentence.
+vocab_prompt() {
+    local terms prompt
+    terms=$(sed 's/#.*//' "$VOCAB_FILE" 2>/dev/null |
+        awk '{ gsub(/^[ \t]+|[ \t]+$/, "") } $0 != "" { if (n++) printf ", "; printf "%s", $0 }')
+    if [ -z "$terms" ]; then
+        return
+    fi
+    prompt="Glossary for this recording: ${terms}. The transcript follows, with normal capitalization and punctuation."
+    if [ ${#prompt} -gt 800 ]; then
+        echo "gc-dictate: vocab prompt is ${#prompt} chars; whisper keeps only ~224 tokens and drops the tail" >&2
+    fi
+    printf '%s' "$prompt"
+}
+
+# Prompt biasing is probabilistic; these rules are not. Anything that must
+# always come out right belongs in fixups.txt rather than vocab.txt.
+apply_fixups() {
+    if [ ! -s "$FIXUPS_FILE" ]; then
+        cat
+        return
+    fi
+    local -a args=()
+    local pat rep
+    while IFS=$'\t' read -r pat rep || [ -n "$pat" ]; do
+        case "$pat" in
+            ''|'#'*) continue ;;
+        esac
+        # \001 as the s/// delimiter so patterns may contain / and | freely.
+        args+=(-e "s"$'\001'"$pat"$'\001'"$rep"$'\001'"gI")
+    done < "$FIXUPS_FILE"
+    if [ ${#args[@]} -eq 0 ]; then
+        cat
+        return
+    fi
+    sed -E "${args[@]}"
+}
+
+transcribe() {
+    ffmpeg -y -loglevel error -f s16le -ar 16000 -ac 1 -i "$RAW_FILE" "$WAV_FILE" </dev/null || {
+        die "ffmpeg failed to wrap the recording"
+    }
+
+    local -a vad_args=()
+    if [ -f "$VAD_MODEL" ]; then
+        vad_args=(--vad --vad-model "$VAD_MODEL")
+    fi
+
+    local -a prompt_args=()
+    local prompt
+    prompt=$(vocab_prompt)
+    if [ -n "$prompt" ]; then
+        prompt_args=(--prompt "$prompt")
+    fi
+
+    local text
+    text=$("$WHISPER_BIN" \
+        --model "$WHISPER_MODEL" \
+        --file "$WAV_FILE" \
+        --language en \
+        --threads "$WHISPER_THREADS" \
+        --no-timestamps \
+        --no-prints \
+        "${prompt_args[@]}" \
+        "${vad_args[@]}" 2>/dev/null)
+
+    # whisper emits bracketed markers for non-speech; drop them, then collapse
+    # the leading/internal whitespace its segment output leaves behind.
+    printf '%s' "$text" \
+        | sed -e 's/\[[A-Z_ ]*\]//g' -e 's/([a-z ]*)//g' \
+        | tr '\n' ' ' \
+        | sed -e 's/  */ /g' -e 's/^ *//' -e 's/ *$//' \
+        | apply_fixups
+}
+
+# xclip forks into the background to serve the selection, so it does not own
+# the clipboard the instant the pipe closes; a paste sent too early gets stale
+# contents.
+wait_for_clipboard() {
+    local want="$1" i
+    for i in $(seq 40); do
+        if [ "$(xclip -selection clipboard -out 2>/dev/null)" = "$want" ]; then
+            return 0
+        fi
+        sleep 0.025
+    done
+    return 1
+}
+
+# Synthesize Ctrl-V into the focused window. Prefers xdotool, falling back to
+# XTEST through python3-xlib so no extra package is required.
+send_paste_keys() {
+    if command -v xdotool >/dev/null 2>&1; then
+        xdotool key --clearmodifiers ctrl+v
+        return
+    fi
+    python3 - <<'PY'
+import sys, time
+from Xlib import display, X
+from Xlib.ext import xtest
+
+CTRL_L, KEY_V = 0xffe3, ord('v')
+# Shift|Control|Alt|Super. The hotkey that launched us may still be physically
+# held down, and injecting then would produce the wrong chord.
+MODIFIERS = 1 | 4 | 8 | 64
+
+d = display.Display()
+if d.query_extension('XTEST') is None:
+    sys.exit('XTEST unavailable')
+
+root = d.screen().root
+for _ in range(60):
+    if not root.query_pointer().mask & MODIFIERS:
+        break
+    time.sleep(0.025)
+
+ctrl = d.keysym_to_keycode(CTRL_L)
+v = d.keysym_to_keycode(KEY_V)
+if not ctrl or not v:
+    sys.exit('no keycode for Ctrl-V')
+
+xtest.fake_input(d, X.KeyPress, ctrl)
+xtest.fake_input(d, X.KeyPress, v)
+xtest.fake_input(d, X.KeyRelease, v)
+xtest.fake_input(d, X.KeyRelease, ctrl)
+d.sync()
+PY
+}
+
+deliver() {
+    local mode="$1" target="$2" text="$3"
+
+    case "$mode" in
+        stdout)
+            printf '%s\n' "$text"
+            ;;
+        clip)
+            printf '%s' "$text" | xclip -selection clipboard -in
+            notify "dictate: copied ${#text} chars to clipboard"
+            ;;
+        xpaste)
+            printf '%s' "$text" | xclip -selection clipboard -in
+            wait_for_clipboard "$text" || die "clipboard never took the transcript"
+            send_paste_keys || die "could not synthesize Ctrl-V"
+            notify "dictate: pasted ${#text} chars"
+            ;;
+        paste)
+            if [ -z "$target" ] || [ -z "${TMUX:-}" ]; then
+                printf '%s\n' "$text"
+                return
+            fi
+            printf '%s' "$text" | tmux load-buffer -b gc-dictate - || die "tmux load-buffer failed"
+            # -p = bracketed paste, -d = delete buffer after. No Enter is sent,
+            # so the text lands in the prompt for review.
+            tmux paste-buffer -d -p -b gc-dictate -t "$target" || die "target pane is gone"
+            ;;
+    esac
+}
+
+stop_and_transcribe() {
+    local pid="$1"
+    local mode target
+
+    mode=$(sed -n 1p "$META_FILE" 2>/dev/null); mode="${mode:-paste}"
+    target=$(sed -n 2p "$META_FILE" 2>/dev/null)
+
+    kill "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    rm -f "$PID_FILE" "$META_FILE"
+
+    if [ ! -s "$RAW_FILE" ]; then
+        set_indicator ""
+        notify "dictate: nothing recorded"
+        return
+    fi
+
+    set_indicator "#[fg=yellow,bold]◆ …transcribing #[default]"
+
+    local text
+    text=$(transcribe)
+    set_indicator ""
+
+    if [ -z "$text" ]; then
+        notify "dictate: no speech detected"
+        return
+    fi
+
+    deliver "$mode" "$target" "$text"
+}
+
+# Re-run the last recording through the current vocab and fixups, so the lists
+# can be tuned against real audio without speaking the same phrase repeatedly.
+redo() {
+    if [ ! -s "$RAW_FILE" ]; then
+        die "no previous recording to redo"
+    fi
+    transcribe
+    echo
+}
+
+cancel() {
+    local pid
+    if pid=$(recorder_pid); then
+        kill "$pid" 2>/dev/null
+        wait "$pid" 2>/dev/null
+    fi
+    rm -f "$PID_FILE" "$META_FILE" "$RAW_FILE"
+    set_indicator ""
+    notify "dictate: cancelled"
+}
+
+main() {
+    local mode=paste target="${TMUX_PANE:-}"
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --clip)    mode=clip ;;
+            --stdout)  mode=stdout ;;
+            --xpaste)  mode=xpaste ;;
+            --cancel)  cancel; return ;;
+            --redo)    redo; return ;;
+            --pane)    shift; target="${1:-}" ;;
+            -h|--help)
+                sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+                return
+                ;;
+            *) die "unknown argument: $1" ;;
+        esac
+        shift
+    done
+
+    local pid
+    if pid=$(recorder_pid); then
+        stop_and_transcribe "$pid"
+    else
+        start_recording "$mode" "$target"
+    fi
+}
+
+main "$@"

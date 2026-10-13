@@ -1,0 +1,3 @@
+# Read via RIPGREP_CONFIG_PATH (set in ~/.bashrc). Opt out per-invocation with
+# `rg --no-config` — --no-ignore does NOT undo --ignore-file.
+--ignore-file=/home/gcantieni/.config/ripgrep/ignore

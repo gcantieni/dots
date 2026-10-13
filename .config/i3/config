@@ -1,0 +1,204 @@
+# i3 config — see https://i3wm.org/docs/userguide.html
+
+set $mod Mod4
+set $left  DP-1
+set $right HDMI-2
+
+font pango:Ubuntu Sans 10
+workspace_layout tabbed
+gaps inner 6
+floating_modifier $mod
+tiling_drag modifier titlebar
+
+# --- Session startup -------------------------------------------------------
+# GNOME's monitors.xml, xkb options, and idle policy aren't applied outside GNOME.
+exec --no-startup-id xrandr --output $left --mode 1920x1200 --pos 0x0 --output $right --primary --mode 1920x1200 --pos 1920x0
+exec --no-startup-id setxkbmap -layout us -option '' -option caps:swapescape,compose:ralt
+exec --no-startup-id xset s off -dpms
+
+# Themes, fonts, and cursor from GNOME settings.
+exec --no-startup-id /usr/libexec/gsd-xsettings
+exec --no-startup-id /usr/libexec/polkit-mate-authentication-agent-1
+exec --no-startup-id /usr/libexec/mate-notification-daemon/mate-notification-daemon
+exec --no-startup-id nm-applet
+exec --no-startup-id blueman-applet
+# Locks on suspend and on `loginctl lock-session`.
+exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork --color 1d1f21 --show-failed-attempts
+exec --no-startup-id copyq --start-server
+# Swap the image by repointing the ~/.config/i3/wallpaper symlink.
+exec_always --no-startup-id feh --no-fehbg --bg-fill ~/.config/i3/wallpaper
+
+# --- Launchers -------------------------------------------------------------
+bindsym $mod+Return exec ghostty
+bindsym $mod+d exec --no-startup-id rofi -show drun
+bindsym $mod+space exec --no-startup-id rofi -show drun
+bindsym $mod+Tab exec --no-startup-id rofi -show window
+bindsym $mod+e exec nautilus
+bindsym $mod+Shift+e exec --no-startup-id rofi -show filebrowser
+bindsym $mod+i exec env XDG_CURRENT_DESKTOP=GNOME gnome-control-center
+bindsym $mod+c exec --no-startup-id copyq menu
+# Screenshots: GUI / region to clipboard / active window to clipboard.
+bindsym Print exec spectacle
+bindsym Shift+Print exec --no-startup-id spectacle -b -n -c -r
+bindsym Ctrl+Print exec --no-startup-id spectacle -b -n -c -a
+bindsym $mod+Escape exec --no-startup-id loginctl lock-session
+
+bindsym $mod+Shift+q kill
+
+set $launch "launch: [b]rave  [B] private  [f]irefox  [e]dge  [c]ode  [n] obsidian  [m]ail"
+mode $launch {
+        bindsym b exec brave-browser; mode "default"
+        bindsym Shift+b exec brave-browser --incognito; mode "default"
+        bindsym f exec firefox; mode "default"
+        bindsym e exec microsoft-edge; mode "default"
+        bindsym c exec code; mode "default"
+        bindsym n exec obsidian; mode "default"
+        bindsym m exec thunderbird; mode "default"
+        bindsym Escape mode "default"
+        bindsym Return mode "default"
+        bindsym $mod+o mode "default"
+}
+bindsym $mod+o mode $launch
+
+for_window [class="copyq"] floating enable
+
+# --- Focus / tabs (h/l switch tabs in a tabbed container) ------------------
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+bindsym $mod+Left focus left
+bindsym $mod+Down focus down
+bindsym $mod+Up focus up
+bindsym $mod+Right focus right
+
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Down move down
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Right move right
+
+# --- Layout ----------------------------------------------------------------
+bindsym $mod+s layout toggle tabbed splith
+bindsym $mod+Shift+s layout toggle tabbed splitv
+bindsym $mod+t layout tabbed
+# Nest the next window beside/below the focused one.
+bindsym $mod+b split h
+bindsym $mod+v split v
+bindsym $mod+a focus parent
+bindsym $mod+Shift+a focus child
+
+# Per-monitor fullscreen; never spans outputs.
+bindsym $mod+f fullscreen toggle
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+Ctrl+space focus mode_toggle
+
+mode "resize" {
+        bindsym h resize shrink width 10 px or 5 ppt
+        bindsym j resize grow height 10 px or 5 ppt
+        bindsym k resize shrink height 10 px or 5 ppt
+        bindsym l resize grow width 10 px or 5 ppt
+        bindsym Left resize shrink width 10 px or 5 ppt
+        bindsym Down resize grow height 10 px or 5 ppt
+        bindsym Up resize shrink height 10 px or 5 ppt
+        bindsym Right resize grow width 10 px or 5 ppt
+        bindsym Return mode "default"
+        bindsym Escape mode "default"
+        bindsym $mod+r mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# --- Workspaces: 1-5 on the left monitor, 6-10 on the right ----------------
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+set $ws5 "5"
+set $ws6 "6"
+set $ws7 "7"
+set $ws8 "8"
+set $ws9 "9"
+set $ws10 "10"
+
+workspace $ws1 output $left $right
+workspace $ws2 output $left $right
+workspace $ws3 output $left $right
+workspace $ws4 output $left $right
+workspace $ws5 output $left $right
+workspace $ws6 output $right $left
+workspace $ws7 output $right $left
+workspace $ws8 output $right $left
+workspace $ws9 output $right $left
+workspace $ws10 output $right $left
+
+bindsym $mod+1 workspace number $ws1
+bindsym $mod+2 workspace number $ws2
+bindsym $mod+3 workspace number $ws3
+bindsym $mod+4 workspace number $ws4
+bindsym $mod+5 workspace number $ws5
+bindsym $mod+6 workspace number $ws6
+bindsym $mod+7 workspace number $ws7
+bindsym $mod+8 workspace number $ws8
+bindsym $mod+9 workspace number $ws9
+bindsym $mod+0 workspace number $ws10
+
+bindsym $mod+Shift+1 move container to workspace number $ws1
+bindsym $mod+Shift+2 move container to workspace number $ws2
+bindsym $mod+Shift+3 move container to workspace number $ws3
+bindsym $mod+Shift+4 move container to workspace number $ws4
+bindsym $mod+Shift+5 move container to workspace number $ws5
+bindsym $mod+Shift+6 move container to workspace number $ws6
+bindsym $mod+Shift+7 move container to workspace number $ws7
+bindsym $mod+Shift+8 move container to workspace number $ws8
+bindsym $mod+Shift+9 move container to workspace number $ws9
+bindsym $mod+Shift+0 move container to workspace number $ws10
+
+# Cycle workspaces on the current monitor only.
+bindsym $mod+bracketleft workspace prev_on_output
+bindsym $mod+bracketright workspace next_on_output
+
+# --- Monitors --------------------------------------------------------------
+bindsym $mod+comma focus output left
+bindsym $mod+period focus output right
+bindsym $mod+Shift+comma move container to output left; focus output left
+bindsym $mod+Shift+period move container to output right; focus output right
+bindsym $mod+Ctrl+comma move workspace to output left
+bindsym $mod+Ctrl+period move workspace to output right
+
+# --- Media keys ------------------------------------------------------------
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +5%
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -5%
+bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle
+bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOURCE@ toggle
+bindsym XF86AudioPlay exec --no-startup-id playerctl play-pause
+bindsym XF86AudioNext exec --no-startup-id playerctl next
+bindsym XF86AudioPrev exec --no-startup-id playerctl previous
+
+# --- i3 session ------------------------------------------------------------
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+r restart
+bindsym $mod+Shift+x exec i3-nagbar -t warning -m 'Exit i3 and end the session?' -B 'Log out' 'i3-msg exit'
+
+# Tomorrow Night palette, matching the i3lock color.
+bar {
+        status_command i3status
+        tray_output primary
+        position bottom
+        font pango:JetBrainsMono Nerd Font Propo 10
+        padding 2px 6px
+        separator_symbol "  │  "
+        colors {
+                background #1d1f21
+                statusline #c5c8c6
+                separator  #373b41
+                #                  border  bg      text
+                focused_workspace  #81a2be #81a2be #1d1f21
+                active_workspace   #373b41 #373b41 #c5c8c6
+                inactive_workspace #1d1f21 #1d1f21 #707880
+                urgent_workspace   #cc6666 #cc6666 #1d1f21
+                binding_mode       #f0c674 #f0c674 #1d1f21
+        }
+}

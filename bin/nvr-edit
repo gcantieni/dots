@@ -1,0 +1,7 @@
+#!/bin/sh
+# $EDITOR wrapper for use inside an nvim :terminal (see ~/.bashrc). Routes files
+# through nvr so they open in a normal editing window above the toggleterm rather
+# than hijacking the terminal window (which wrecks its size). The -cc command runs
+# before nvr's :edit; see lua/core/nvr.lua. Stays a single word so callers that
+# invoke "$EDITOR" as one command still work.
+exec nvr -cc 'lua require("core.nvr").goto_editable_window()' "$@"

@@ -1,0 +1,53 @@
+# Build artifacts to hide from ripgrep (and therefore telescope).
+# gitignore syntax. Applied via --ignore-file, so it works in trees that
+# are not git repos — where rg would otherwise list every generated file.
+#
+# Deliberately NOT excluded: test expectation files (*.out+, *.err+, *.argv,
+# *.result). Those are edited by hand.
+
+# Compiled objects and libraries
+*.o
+*.obj
+*.a
+*.lo
+*.la
+*.so
+*.so.[0-9]*
+*.dylib
+*.dll
+*.lib
+*.exe
+
+# Make/compiler dependency files
+*.dep
+*.d
+
+# Per-platform build output, e.g. Linux6.8_x86_64_gcc_..._DBG.OBJ/
+*.OBJ/
+
+# Bytecode
+*.pyc
+*.pyo
+__pycache__/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven/Gradle output
+target/
+build/classes/
+build/libs/
+node_modules/
+
+# Archives
+*.tar
+*.tar.*
+*.tgz
+*.zip
+*.gz
+*.bz2
+*.xz
+*.7z
+*.rpm
+*.deb

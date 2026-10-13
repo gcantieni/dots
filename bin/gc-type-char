@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Type an arbitrary character into the focused X11 window.
+
+GNOME custom keybindings can only launch a command, so producing a character
+that isn't on the keyboard means synthesising the keypress. A spare keycode is
+temporarily bound to the character's keysym, pressed via XTEST, then unbound.
+"""
+
+import sys
+import time
+
+from Xlib import X, display
+from Xlib.ext import xtest
+
+DEFAULT_CHAR = "—"
+# Shift|Control|Alt|Super. The hotkey that launched us may still be physically
+# held down, and injecting then would produce the wrong chord.
+MODIFIERS = 1 | 4 | 8 | 64
+
+
+def spare_keycode(d):
+    lo = d.display.info.min_keycode
+    hi = d.display.info.max_keycode
+    mapping = d.get_keyboard_mapping(lo, hi - lo + 1)
+    # Scan downwards: the high end of the range is furthest from real hardware
+    # keycodes, and keycode 8 sits below the evdev range some toolkits assume.
+    for offset in reversed(range(len(mapping))):
+        if not any(mapping[offset]) and lo + offset > 8:
+            return lo + offset
+    sys.exit("no unused keycode to borrow")
+
+
+def wait_for_modifier_release(d):
+    root = d.screen().root
+    for _ in range(60):
+        if not root.query_pointer().mask & MODIFIERS:
+            return
+        time.sleep(0.025)
+
+
+def main():
+    char = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CHAR
+    if len(char) != 1:
+        sys.exit(f"expected a single character, got {char!r}")
+
+    d = display.Display()
+    if d.query_extension("XTEST") is None:
+        sys.exit("XTEST unavailable")
+
+    keycode = spare_keycode(d)
+    # Keysyms below 0x100 encode Latin-1 directly; everything else uses the
+    # 0x01000000 Unicode escape.
+    codepoint = ord(char)
+    keysym = codepoint if codepoint < 0x100 else 0x01000000 | codepoint
+
+    wait_for_modifier_release(d)
+    d.change_keyboard_mapping(keycode, [[keysym] * 8])
+    d.sync()
+    # Clients rebuild their keymap asynchronously on MappingNotify; pressing
+    # before they have caught up yields NoSymbol.
+    time.sleep(0.03)
+    try:
+        xtest.fake_input(d, X.KeyPress, keycode)
+        xtest.fake_input(d, X.KeyRelease, keycode)
+        d.sync()
+        time.sleep(0.03)
+    finally:
+        d.change_keyboard_mapping(keycode, [[X.NoSymbol] * 8])
+        d.sync()
+
+
+if __name__ == "__main__":
+    main()

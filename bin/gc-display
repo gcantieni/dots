@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# This happens a lot on my tmux sessions
+if [ -z "$DISPLAY" ]; then
+  export DISPLAY=:0
+fi
+
+# Define a file to store the last used configuration
+CONFIG_FILE="/tmp/display_toggle_config"
+
+# Function to set DP-1 left of HDMI-2 rotated right
+set_dual_display() {
+    xrandr --output DP-1 --auto --left-of HDMI-2 --rotate normal \
+           --output HDMI-2 --auto --rotate normal --primary
+    echo "dual" > "$CONFIG_FILE"
+}
+
+# Function to set HDMI-2 as the sole display
+set_single_display() {
+    xrandr --output DP-1 --off \
+           --output HDMI-2 --auto --primary --rotate normal
+    echo "single" > "$CONFIG_FILE"
+}
+
+usage () {
+  echo "usage: Specify 1 for single monitor or 2 for dual monitor"
+}
+
+if [ $# = 0 ]; then 
+  usage
+  exit 1
+fi
+
+case $1 in
+  1) set_single_display ;;
+  2) set_dual_display ;;
+  default) 
+    echo "Unknown option $1"
+    usage
+    ;;
+esac

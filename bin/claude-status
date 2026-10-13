@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# Overview of Claude agents across tmux sessions, fed by claude-status-hook.
+#
+#   claude-status          interactive fzf switcher (intended for a tmux popup)
+#   claude-status --line   compact one-line summary for the tmux status bar
+#   claude-status --list   plain text listing
+#
+# Records live in ~/.claude/status/pane-<pane_id>.json (one record per pane).
+# Records whose pane no longer exists are pruned on read.
+
+status_dir="$HOME/.claude/status"
+SEP=$'\x1f'   # field separator: non-whitespace so `read` keeps empty fields
+
+# Absolute path to this script, so the fzf preview can re-invoke us.
+self=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")
+
+# Emit live records as TSV, pruning dead panes:
+#   pane  sort_rank  state  session  window_index  window_name  project  cwd  summary  kind  ts
+live_records() {
+  [[ -d $status_dir ]] || return 0
+  # Set of currently-existing pane ids; display-message doesn't validate
+  # targets, so membership in this list is the reliable liveness check.
+  local live_panes
+  live_panes=$(tmux list-panes -a -F '#{pane_id}' 2>/dev/null)
+  local f pane
+  for f in "$status_dir"/*.json; do
+    [[ -e $f ]] || continue
+    pane=$(jq -r '.pane // empty' "$f")
+    if [[ -z $pane ]] || ! grep -qxF "$pane" <<<"$live_panes"; then
+      rm -f "$f"
+      continue
+    fi
+    jq -r --arg sep "$SEP" '
+      ({waiting:0, busy:1, done:2, idle:3}[.state] // 4 | tostring) as $rank |
+      [.pane, $rank, .state, .tmux_session, .window_index,
+       .window_name, .project, .cwd, (.summary // ""), (.kind // ""), (.ts // 0)]
+      | map(tostring) | join($sep)' "$f"
+  done | awk -F"$SEP" '
+    # Dedup by pane (field 1), keeping the newest ts (last field). With pane-keyed
+    # records there is normally one file per pane; this makes a stray double-write
+    # (e.g. mid-transition) impossible to display as two rows.
+    { p=$1; t=$NF; if (!(p in seen) || t+0 >= best[p]+0) { best[p]=t; line[p]=$0; seen[p]=1 } }
+    END { for (p in line) print line[p] }
+  '
+}
+
+# Subtle marker for background/"auto" (daemon) chats. Always 2 visible cols so
+# columns stay aligned whether or not the marker is present.
+bgmark() { [[ $1 == bg ]] && printf '\033[90mbg\033[0m' || printf '  '; }
+
+# Compact time since a record's last hook event: 45s, 12m, 3h, 5d.
+fmt_age() {
+  local ts=$1 now=$2 d
+  [[ $ts -gt 0 ]] 2>/dev/null || { printf '  -'; return; }
+  d=$(( now - ts ))
+  (( d < 0 )) && d=0
+  if   (( d < 60 ));    then printf '%3ds' "$d"
+  elif (( d < 3600 ));  then printf '%3dm' $(( d / 60 ))
+  elif (( d < 86400 )); then printf '%3dh' $(( d / 3600 ))
+  else                       printf '%3dd' $(( d / 86400 ))
+  fi
+}
+
+# Walk a pid's ancestry to the tmux pane that owns it (a pane_pid is an ancestor).
+# Echoes the pane id, or returns 1 if none found / not in tmux.
+pane_of_pid() {
+  local pid=$1 hop hit map
+  map=$(tmux list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null) || return 1
+  for hop in $(seq 1 40); do
+    [[ -z $pid || $pid -le 1 ]] && break
+    hit=$(awk -v p="$pid" '$1==p {print $2; exit}' <<<"$map")
+    [[ -n $hit ]] && { printf '%s' "$hit"; return 0; }
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  done
+  return 1
+}
+
+icon() {
+  case $1 in
+    waiting) printf '\033[33m◆\033[0m' ;;   # needs attention
+    busy)    printf '\033[32m●\033[0m' ;;   # working
+    done)    printf '\033[34m✔\033[0m' ;;   # finished a turn
+    idle)    printf '\033[90m○\033[0m' ;;   # started, no activity
+    *)       printf '\033[90m?\033[0m' ;;
+  esac
+}
+
+case ${1:-} in
+  --line)
+    # Counts per state for the tmux status bar; empty when nothing is running.
+    counts=$(live_records | cut -d"$SEP" -f3 | sort | uniq -c)
+    out=""
+    w=$(awk '$2=="waiting"{print $1}' <<<"$counts")
+    b=$(awk '$2=="busy"{print $1}' <<<"$counts")
+    d=$(awk '$2=="done"{print $1}' <<<"$counts")
+    [[ -n $b ]] && out+="#[fg=green]● $b"
+    [[ -n $w ]] && out+="#[fg=yellow]◆ $w"
+    [[ -n $d ]] && out+="#[fg=blue]✔ $d"
+    [[ -n $out ]] && printf '#[fg=cyan]\342\234\273 #[default]%s#[default] ' "$out"
+    ;;
+
+  --list)
+    now=$(date +%s)
+    while IFS=$SEP read -r pane rank state sess widx wname project cwd summary kind ts; do
+      [[ -z $pane ]] && continue
+      (( ${#summary} > 40 )) && summary="${summary:0:37}..."
+      printf '%s  %-7s  %s  %-40s  %-20s  %-18s \033[90m%s\033[0m\n' \
+        "$(icon "$state")" "$state" "$(bgmark "$kind")" "$summary" "$sess:$widx" \
+        "$project" "$(fmt_age "$ts" "$now")"
+    done < <(live_records | sort -t"$SEP" -k2,2 -k11,11nr)
+    ;;
+
+  --preview)
+    # Pane preview for the fzf switcher. Show the last real OUTPUT and skip
+    # Claude Code's trailing chrome (the spinner/elapsed-time line, the input
+    # box, and the footer): it's wasted space, tells you nothing about state,
+    # and wraps badly. ANSI is stripped for matching only; we print the
+    # original colored lines.
+    pane=$2
+    h=$(( ${FZF_PREVIEW_LINES:-40} * 3 / 4 ))   # leave ~1/4 headroom for wraps
+    (( h < 1 )) && h=${FZF_PREVIEW_LINES:-40}
+    tmux capture-pane -ept "$pane" 2>/dev/null | LC_ALL=en_US.UTF-8 awk -v h="$h" '
+      function strip(s){ gsub(/\033\[[0-9;?]*[A-Za-z]/, "", s); return s }
+      function isrule(s,   t){ t=s; return (gsub(/─/,"x",t) >= 20) }
+      function isspinner(s){ return (s ~ /^(✻|✽|✶|✳|✢|✺|✷|✸|✹|✦|·) /) }
+      { orig[NR]=$0; plain[NR]=strip($0) }
+      END {
+        n=NR; last=0; prev=0
+        # The input box is bracketed by two full-width rules at the bottom;
+        # cut from its top rule down. Require it near the end so a stray rule
+        # in the real output cannot trigger a cut.
+        for (i=1;i<=n;i++) if (isrule(plain[i])) { prev=last; last=i }
+        if (last < n-3) { last=0; prev=0 }
+        end = (last && prev) ? prev-1 : n
+        # Drop trailing blank lines and the spinner/elapsed-time status line.
+        while (end>=1 && (plain[end] ~ /^[[:space:]]*$/ || isspinner(plain[end]))) end--
+        start = end-h+1; if (start<1) start=1
+        for (i=start;i<=end;i++) print orig[i]
+      }'
+    ;;
+
+  --rescan)
+    # Rebuild records for every live pane running a Claude agent -- e.g. after the
+    # status dir was cleared or the tmux server restarted. Existing records are
+    # left intact (a live/active pane is never clobbered). State defaults to idle
+    # and the summary is filled from the session transcript only when a pane's cwd
+    # is unambiguous; both self-correct on the pane's next hook.
+    mkdir -p "$status_dir"
+    declare -A pane_cwd cwd_n
+    for cp in $(pgrep -x claude 2>/dev/null); do
+      pane=$(pane_of_pid "$cp") || continue
+      [[ -z $pane || -n ${pane_cwd[$pane]:-} ]] && continue
+      pane_cwd[$pane]=$(readlink "/proc/$cp/cwd" 2>/dev/null)
+    done
+    for pane in "${!pane_cwd[@]}"; do
+      cwd_n[${pane_cwd[$pane]}]=$(( ${cwd_n[${pane_cwd[$pane]}]:-0} + 1 ))
+    done
+    for pane in "${!pane_cwd[@]}"; do
+      file="$status_dir/pane-${pane}.json"
+      [[ -e $file ]] && continue
+      cwd=${pane_cwd[$pane]}
+      coords=$(tmux display-message -t "$pane" -p \
+        '#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}' 2>/dev/null) || continue
+      IFS=$'\t' read -r tsess widx wname <<<"$coords"
+      project=$(basename "${cwd:-$PWD}")
+      summary=""; kind=""; sid=""
+      if [[ -n $cwd && ${cwd_n[$cwd]} -eq 1 ]]; then
+        enc=$(printf '%s' "$cwd" | sed 's#[/.]#-#g')
+        tf=$(ls -t "$HOME/.claude/projects/$enc/"*.jsonl 2>/dev/null | head -1)
+        if [[ -n $tf ]]; then
+          sid=$(basename "$tf" .jsonl)
+          summary=$(tac "$tf" 2>/dev/null | grep -m1 '"type":"ai-title"' | jq -r '.aiTitle // empty' 2>/dev/null)
+          grep -q '"sessionKind":"bg"' "$tf" && kind=bg
+        fi
+      fi
+      jq -n --arg session_id "$sid" --arg pane "$pane" --arg tmux_session "$tsess" \
+        --arg window_index "$widx" --arg window_name "$wname" --arg cwd "$cwd" \
+        --arg project "$project" --arg state idle --arg summary "$summary" \
+        --arg kind "$kind" --argjson ts "$(date +%s)" \
+        '{$session_id,$pane,$tmux_session,$window_index,$window_name,$cwd,$project,$state,$summary,$kind,$ts}' \
+        >"$file"
+    done
+    # Push the refreshed summary to the status bar (mirrors the hook's refresh).
+    tmux set-option -gq @claude_status "$("$self" --line 2>/dev/null)" 2>/dev/null
+    for c in $(tmux list-clients -F '#{client_name}' 2>/dev/null); do
+      tmux refresh-client -S -t "$c" 2>/dev/null
+    done
+    "$self" --list
+    ;;
+
+  *)
+    # Interactive switcher. Hidden first column is the pane id used on select.
+    now=$(date +%s)
+    lines=$(while IFS=$SEP read -r pane rank state sess widx wname project cwd summary kind ts; do
+      [[ -z $pane ]] && continue
+      (( ${#summary} > 40 )) && summary="${summary:0:37}..."
+      printf '%s\t%s  %-7s  %s  %-40s  %-20s  %-18s \033[90m%s\033[0m\n' \
+        "$pane" "$(icon "$state")" "$state" "$(bgmark "$kind")" "$summary" "$sess:$widx" \
+        "$project" "$(fmt_age "$ts" "$now")"
+    done < <(live_records | sort -t"$SEP" -k2,2 -k11,11nr))
+
+    if [[ -z $lines ]]; then
+      printf 'No Claude agents are running.\n'
+      sleep 1.2
+      exit 0
+    fi
+
+    sel=$(printf '%s\n' "$lines" | fzf --ansi --reverse \
+      --delimiter='\t' --with-nth=2.. --nth=2.. \
+      --header='switch to claude agent' \
+      --preview="$self --preview {1}" \
+      --preview-window='down,60%,wrap')
+    [[ -z $sel ]] && exit 0
+
+    pane=${sel%%$'\t'*}
+    tmux switch-client -t "$pane" 2>/dev/null
+    tmux select-window -t "$pane" 2>/dev/null
+    tmux select-pane -t "$pane" 2>/dev/null
+    ;;
+esac

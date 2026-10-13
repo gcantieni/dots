@@ -1,0 +1,7 @@
+/home/gcantieni/opt/idea-IU-251.23774.435/bin/idea \
+  -Didea.config.path=$HOME/.IdeaLocal/config \
+  -Didea.system.path=$HOME/.IdeaLocal/system \
+  -Didea.log.path=$HOME/.Idealocal/system/log \
+  -Didea.plugins.path=$HOME/.Idealocal/config/plugins
+
+

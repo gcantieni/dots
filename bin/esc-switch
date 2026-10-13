@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# swap caps lock and control
+#echo "note: use '-c' to reset to default"
+
+# Now just toggle user mapping by defualt:
+if [ "$1" = "-c" ] || [ "$1" = "-r" ]; then
+	hidutil property --set '{"UserKeyMapping":[]}'
+elif [ "$1" = "-p" ]; then
+	hidutil property --get "UserKeyMapping"
+else
+	# Get the mapping and check if our mapping is already registered. If it isn't, set it.
+	if hidutil property --get "UserKeyMapping" | grep -q "30064771113"; then # this is the int form of 0x700000039
+		echo "Clearing esc mapping"
+		hidutil property --set '{"UserKeyMapping":[]}'
+	else
+		echo "Switching esc and caps"
+		hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000029},{"HIDKeyboardModifierMappingSrc":0x700000029,"HIDKeyboardModifierMappingDst":0x700000039}]}'
+	fi
+fi
