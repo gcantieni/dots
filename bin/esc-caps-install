@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Set up the esc <-> caps swap on a new Mac. Safe to re-run.
+#
+# Expects esc-switch, esc-caps-ensure and com.gus.esc-caps-swap.plist in ~/bin
+# (i.e. run it after checking out dots). See esc-caps-RECOVERY.md for how the
+# pieces fit together and how to undo all of this.
+#
+#   1. Installs the LaunchAgent that runs esc-caps-ensure at login + every 10s.
+#   2. Removes any System Settings > Keyboard > Modifier Keys mapping, which
+#      composes with the swap (caps->esc plus our swap sends both keys to caps
+#      lock). Removed values are backed up first. This part needs a logout.
+#   3. Applies the swap now and prints the resulting state.
+
+set -euo pipefail
+
+LABEL="com.gus.esc-caps-swap"
+BIN="$HOME/bin"
+SRC_PLIST="$BIN/$LABEL.plist"
+AGENT="$HOME/Library/LaunchAgents/$LABEL.plist"
+BACKUP_DIR="$HOME/.local/state/esc-caps"
+DOMAIN="gui/$(id -u)"
+
+[ "$(uname)" = Darwin ] || { echo "esc-caps-install: macOS only" >&2; exit 1; }
+
+for f in esc-switch esc-caps-ensure "$LABEL.plist"; do
+	[ -f "$BIN/$f" ] || { echo "esc-caps-install: missing $BIN/$f" >&2; exit 1; }
+done
+chmod +x "$BIN/esc-switch" "$BIN/esc-caps-ensure"
+
+# 1. LaunchAgent. The tracked plist hardcodes /Users/gus; symlink it when that
+# matches, otherwise install a copy pointed at this $HOME.
+mkdir -p "$(dirname "$AGENT")"
+rm -f "$AGENT"
+if grep -q "<string>$BIN/esc-caps-ensure</string>" "$SRC_PLIST"; then
+	ln -s "$SRC_PLIST" "$AGENT"
+else
+	sed "s|/Users/[^/<]*/bin/esc-caps-ensure|$BIN/esc-caps-ensure|" "$SRC_PLIST" >"$AGENT"
+fi
+plutil -lint "$AGENT" >/dev/null
+
+# bootstrap refuses an already-loaded label, so unload first when re-running.
+launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+launchctl bootstrap "$DOMAIN" "$AGENT"
+echo "LaunchAgent $LABEL loaded"
+
+# 2. Native modifier mappings, one key per keyboard
+# (com.apple.keyboard.modifiermapping.<vendor>-<product>-0).
+logout_needed=0
+keys=$(defaults -currentHost read -g 2>/dev/null \
+	| grep -oE 'com\.apple\.keyboard\.modifiermapping\.[0-9-]+' | sort -u || true)
+if [ -n "$keys" ]; then
+	mkdir -p "$BACKUP_DIR"
+	for k in $keys; do
+		backup="$BACKUP_DIR/$k.$(date +%Y%m%d-%H%M%S).backup"
+		defaults -currentHost read -g "$k" >"$backup"
+		defaults -currentHost delete -g "$k"
+		echo "Removed native mapping $k (backup: $backup)"
+	done
+	logout_needed=1
+fi
+
+# 3. Apply now rather than waiting for the agent's first tick.
+rm -f "$HOME/.esc-caps-off"
+"$BIN/esc-caps-ensure"
+
+echo
+"$BIN/esc-switch" -p
+if [ "$logout_needed" -eq 1 ]; then
+	echo
+	echo "Log out and back in to clear the native mapping from the keyboard driver."
+	echo "Until then caps and esc may both act as caps lock on affected keyboards."
+fi

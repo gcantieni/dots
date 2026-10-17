@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Ensure the esc <-> caps swap is applied to every connected keyboard.
+#
+# hidutil only applies UserKeyMapping to HID services that exist at the moment
+# it runs. A keyboard attached later -- or one that re-enumerates on wake or on
+# a dock/undock -- comes back unmapped, so we re-assert when one is wrong.
+#
+# Two things this deliberately guards against:
+#
+#   1. A PARTIAL mapping. Checking merely "is a mapping present" would treat one
+#      surviving rule as healthy and never repair it, leaving esc and caps both
+#      producing the same key. So compare against the exact expected rule set.
+#
+#   2. A SECOND mapping layer. `hidutil --set` with no --matching writes an
+#      event-system-wide property that composes with the per-service one; two
+#      swaps stacked on one keystroke give nonsense. We only ever write the
+#      per-service layer, and clear the global one if anything else sets it.
+#
+# Touch ~/.esc-caps-off to disable; remove it to re-enable.
+
+[ -f "$HOME/.esc-caps-off" ] && exit 0
+
+KB='{"PrimaryUsagePage":1,"PrimaryUsage":6}'
+CAPS=30064771129  # 0x700000039
+ESC=30064771113   # 0x700000029
+MAP='{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000029},{"HIDKeyboardModifierMappingSrc":0x700000029,"HIDKeyboardModifierMappingDst":0x700000039}]}'
+
+apply=0
+
+# Guard 2: the global layer must stay empty, or it composes with ours.
+if [ "$(hidutil property --get UserKeyMapping | tr -d '\n\t ')" != "()" ]; then
+	hidutil property --set '{"UserKeyMapping":[]}' >/dev/null
+	apply=1  # that clear may have wiped the per-service layer too
+fi
+
+# Guard 1: every keyboard must carry exactly the two expected rules.
+out=$(hidutil property --matching "$KB" --get "UserKeyMapping" | tail -n +2 | tr -d '\n\t ')
+services=$(grep -o 'UserKeyMapping' <<<"$out" | wc -l | tr -d ' ')
+n_esc=$(grep -o "$ESC" <<<"$out" | wc -l | tr -d ' ')
+n_caps=$(grep -o "$CAPS" <<<"$out" | wc -l | tr -d ' ')
+want=$((services * 2))  # each keycode appears once as a Src and once as a Dst
+
+if [ "$services" -lt 1 ] || [ "$n_esc" -ne "$want" ] || [ "$n_caps" -ne "$want" ]; then
+	apply=1
+fi
+
+[ "$apply" -eq 1 ] && hidutil property --matching "$KB" --set "$MAP" >/dev/null
+exit 0

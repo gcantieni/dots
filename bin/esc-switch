@@ -1,19 +1,72 @@
 #!/usr/bin/env bash
-# swap caps lock and control
-#echo "note: use '-c' to reset to default"
+# Toggle the esc <-> caps lock swap.
+#
+# The swap is maintained by the com.gus.esc-caps-swap LaunchAgent, which
+# re-applies it to any keyboard that shows up unmapped. So turning it off means
+# telling that agent to stand down -- clearing the mapping on its own would just
+# get re-applied within ~10s. ~/.esc-caps-off is that off switch.
+#
+#   esc-switch        toggle
+#   esc-switch -c|-r  off (default keyboard behaviour)
+#   esc-switch -e     on
+#   esc-switch -p     print current state
 
-# Now just toggle user mapping by defualt:
-if [ "$1" = "-c" ] || [ "$1" = "-r" ]; then
-	hidutil property --set '{"UserKeyMapping":[]}'
-elif [ "$1" = "-p" ]; then
-	hidutil property --get "UserKeyMapping"
-else
-	# Get the mapping and check if our mapping is already registered. If it isn't, set it.
-	if hidutil property --get "UserKeyMapping" | grep -q "30064771113"; then # this is the int form of 0x700000039
-		echo "Clearing esc mapping"
-		hidutil property --set '{"UserKeyMapping":[]}'
-	else
-		echo "Switching esc and caps"
-		hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x700000029},{"HIDKeyboardModifierMappingSrc":0x700000029,"HIDKeyboardModifierMappingDst":0x700000039}]}'
-	fi
-fi
+set -euo pipefail
+
+FLAG="$HOME/.esc-caps-off"
+ENSURE="$HOME/bin/esc-caps-ensure"
+KB='{"PrimaryUsagePage":1,"PrimaryUsage":6}'
+
+enable_swap() {
+	rm -f "$FLAG"
+	"$ENSURE"
+	echo "Switching esc and caps"
+}
+
+disable_swap() {
+	touch "$FLAG"
+	# Clear both layers: the per-service one we normally write, and the
+	# event-system-wide one, which would otherwise keep swapping on its own.
+	hidutil property --set '{"UserKeyMapping":[]}' >/dev/null
+	hidutil property --matching "$KB" --set '{"UserKeyMapping":[]}' >/dev/null
+	echo "Clearing esc mapping"
+}
+
+case "${1-}" in
+	-c|-r) disable_swap ;;
+	-e)    enable_swap ;;
+	-p)
+		if [ -f "$FLAG" ]; then
+			echo "swap: OFF ($FLAG present)"
+		else
+			echo "swap: ON"
+		fi
+		# System Settings > Keyboard > Modifier Keys writes a per-keyboard
+		# mapping here. It composes with ours -- a native caps->esc plus our
+		# swap sends both keys to caps lock -- and it only ever covers one
+		# keyboard, so it must stay empty for the swap to behave uniformly.
+		# The LIVE value matters, not the pref: deleting the pref leaves the
+		# driver's copy in place until the next login, and a stale native
+		# caps->esc composes with our swap to send both keys to caps lock.
+		if ioreg -r -c AppleHIDKeyboardEventDriverV2 -l -w0 2>/dev/null \
+			| grep -q '"HIDKeyboardModifierMappingPairs"=({'; then
+			echo "WARNING: native mapping is LIVE on the keyboard driver."
+			echo "         It composes with this swap. Log out and back in to clear it."
+		fi
+		if defaults -currentHost read -g 2>/dev/null | grep -q modifiermapping; then
+			echo "WARNING: native modifier mapping present (System Settings > Keyboard > Modifier Keys)."
+			echo "         It will compose with this swap. Keyboards affected:"
+			defaults -currentHost read -g 2>/dev/null \
+				| grep -oE 'com\.apple\.keyboard\.modifiermapping\.[0-9-]+' | sed 's/^/           /'
+		else
+			echo "native modifier mapping: none (good)"
+		fi
+		echo "global layer (should be empty):"
+		hidutil property --get "UserKeyMapping"
+		echo "per-keyboard layer:"
+		hidutil property --matching "$KB" --get "UserKeyMapping"
+		;;
+	*)
+		if [ -f "$FLAG" ]; then enable_swap; else disable_swap; fi
+		;;
+esac
