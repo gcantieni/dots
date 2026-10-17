@@ -108,10 +108,24 @@ require('lazy').setup({
     'https://github.com/sainnhe/everforest',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
-      vim.o.background = 'dark'
       vim.g.everforest_background = 'hard'
       vim.g.everforest_better_performance = 1
-      vim.cmd.colorscheme 'everforest'
+
+      -- Follow ~/.local/state/theme/mode (dark|light), written by ~/bin/theme-toggle
+      local state_dir = vim.fn.expand '~/.local/state/theme'
+      local function apply_theme()
+        local ok, lines = pcall(vim.fn.readfile, state_dir .. '/mode')
+        local mode = ok and lines[1] == 'light' and 'light' or 'dark'
+        if vim.g.colors_name ~= 'everforest' or vim.o.background ~= mode then
+          vim.o.background = mode
+          vim.cmd.colorscheme 'everforest'
+        end
+      end
+      apply_theme()
+
+      vim.fn.mkdir(state_dir, 'p')
+      local watcher = vim.uv.new_fs_event()
+      watcher:start(state_dir, {}, vim.schedule_wrap(apply_theme))
     end,
   },
 
