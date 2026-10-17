@@ -195,24 +195,10 @@ command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
 . "$HOME/.cargo/env"
 
 # Quick-edit a config from a curated list
-cfg() {
-  local files=(
-    ~/.localrc
-    ~/.bashrc
-    ~/.tmux.conf
-    ~/.config/nvim/init.lua
-    ~/AGENTS.md
-    # add more here as you accumulate them
-  )
-  local f
-  f=$(printf '%s\n' "${files[@]}" | fzf \
-        --preview 'bat --style=numbers --color=always {} 2>/dev/null | head -n 100') \
-    && [[ -n "$f" ]] && eval "${EDITOR:-nvim} \"\$f\""
-}
-
 # Flashcard reminder
 if [[ $- == *i* ]] && command -v reps >/dev/null; then
     reps due
 fi
 
 [ -f "$HOME/.bashrc.work" ] && source "$HOME/.bashrc.work"
+[ -f "$HOME/.bashrc.ai" ] && source "$HOME/.bashrc.ai"
