@@ -37,8 +37,6 @@ path_append() {
     done
 }
 
-[ -f "$HOME/.localrc" ] && source "$HOME/.localrc"
-
 # Tool customization
 path_prepend ~/.config/emacs/bin /opt/nvim-linux-x86_64/bin
 
