@@ -31,6 +31,7 @@ vim.keymap.set('n', '<leader>w', '<cmd>cd %:h<cr>', { desc = 'C[W]D' })
 vim.keymap.set('i', 'kj', '<Esc>')
 vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('x', '<leader>p', '"_d"+P', { desc = 'Replace selection with system clipboard' })
 
 -- could make more of a prefix someday.
 local function toggle_file_spelling()
