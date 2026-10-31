@@ -155,8 +155,6 @@ function y() {
     rm -f -- "$tmp"
 }
 
-alias taskcd='cd "$TASK"'
-
 eval "$(direnv hook bash)"
 
 vterm_printf() {
