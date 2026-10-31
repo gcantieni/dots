@@ -8,7 +8,7 @@ local aug = vim.api.nvim_create_augroup('core.autocmds', { clear = true })
 vim.o.autoread = true
 vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold', 'CursorHoldI' }, {
   group = aug,
-  command = "if mode() != 'c' | checktime | endif",
+  command = "if mode() != 'c' && getcmdwintype() == '' | checktime | endif",
 })
 vim.api.nvim_create_autocmd('FileChangedShellPost', {
   group = aug,

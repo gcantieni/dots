@@ -29,6 +29,19 @@ return {
       -- If you're wondering about lsp vs treesitter, you can check out the wonderfully
       -- and elegantly composed help section, `:help lsp-vs-treesitter`
 
+      -- Servers like clangd only accept file:// URIs, so keep them off fugitive:// and similar buffers.
+      vim.api.nvim_create_autocmd('LspAttach', {
+        group = vim.api.nvim_create_augroup('lsp-file-buffers-only', { clear = true }),
+        callback = function(event)
+          local name = vim.api.nvim_buf_get_name(event.buf)
+          if name:match '^%a[%w+.-]*://' and not vim.startswith(name, 'file://') then
+            vim.schedule(function()
+              vim.lsp.buf_detach_client(event.buf, event.data.client_id)
+            end)
+          end
+        end,
+      })
+
       --  This function gets run when an LSP attaches to a particular buffer.
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
