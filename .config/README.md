@@ -35,13 +35,13 @@ so it can't be added to the public repo by accident. When the work repo is prese
 ## The mental model
 
 One tmux **session per project**. A "project" is a directory under `~/proj/` that
-carries a `.proj` file pointing at the real source tree. You navigate between
+carries a `.proj.json` file pointing at the real source tree. You navigate between
 projects with a fuzzy **sessionizer**, and — because most sessions run a Claude
 agent — you monitor and jump between agents with tmux popups backed by Claude Code
 hooks.
 
 ```
-~/proj/<name>/.proj   ──sourced by──▶  sessionizer
+~/proj/<name>/.proj.json ──read by──▶  sessionizer
       │                                      │
       │ dir=/path/to/source                  │ creates/attaches tmux session
       ▼                                      ▼
@@ -54,23 +54,29 @@ hooks.
 
 ### Projects & sessions
 - **`tmux-sessionizer`** — the core navigator. With no arg, `fzf` over `~/proj/*`;
-  with an arg, targets that dir. Reads the selected dir's `.proj` file to resolve the
-  working directory (`dir=` key, or legacy single-line path), then creates or
-  switches to a tmux session named after the project (dots → underscores). Exports
-  `PROJ=<proj dir>` into the session. Bound to **prefix+f** and **prefix+Space**.
-  A `.proj` with `branch=` is resolved by `gc-proj dir` when that's installed.
+  with an arg, targets that dir. Asks `gc-proj dir` for the project's working
+  directory, then creates or switches to a tmux session named after the project
+  (dots → underscores). Exports `PROJ=<proj dir>` into the session. Bound to
+  **prefix+f** and **prefix+Space**.
+- **`gc-proj`** — project lifecycle: `new`, `open`, `cd`, `set`, `status`/`board`,
+  `done`, `prune` and more (`gc-proj help`). The code lives in `~/.local/share/gc-proj`,
+  whose README covers its settings and plugins, and `~/bin/gc-proj` links to its
+  launcher. The `gc-proj` shell function in `.bashrc` makes `gc-proj cd` move the
+  current shell too, and has `gc-proj done` leave the project's tree first.
 - **`tm`** — `fzf` attach to an existing session (simple alternative to the sessionizer).
 
-### The `.proj` file
-Bash-sourceable `key=value` living at `~/proj/<name>/.proj`:
-```sh
-dir=/path/to/source
-build='cd "$dir/module" && make'
-test='cd "$dir/module" && make test'
+### The project file
+`~/proj/<name>/.proj.json`, a flat JSON object of strings written by `gc-proj`:
+```json
+{
+  "dir": "/path/to/source",
+  "build": "cd \"$dir/module\" && make"
+}
 ```
-Legacy format (a single line containing just the path) is still read as `dir=`.
-`$PROJ` points at the `~/proj/<name>` dir; `$dir` (and the resolved cwd) point at the
-source tree.
+Read it with `gc-proj dir` or `gc-proj get <key>` rather than parsing it. An old
+bash-sourceable `.proj` is still read, and `gc-proj migrate` converts it.
+`$PROJ` points at the `~/proj/<name>` dir. `$dir` (in `gc-proj run` commands) and the
+resolved cwd point at the source tree.
 
 ### Claude agent monitoring
 - **`claude-status-hook <state>`** — invoked from Claude Code hooks (see

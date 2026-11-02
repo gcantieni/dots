@@ -14,20 +14,10 @@ fi
 selected_name=$(basename "$selected" | tr . _)
 proj_dir=$selected
 
-# Allow proj to override base directory.
-# .proj is bash-sourceable key=value (dir=..., build=..., test=...).
-if [[ -e $selected/.proj ]]; then
-   dir=
-   branch=
-   # shellcheck disable=SC1090
-   source "$selected/.proj"
-   [[ -n $dir ]] && selected=$dir
-   # A branch= project lives wherever that branch is checked out; gc-proj
-   # knows how to find it, when it's installed.
-   if [[ -n $branch ]] && command -v gc-proj >/dev/null; then
-     resolved=$(gc-proj dir "$proj_dir" 2>/dev/null)
-     [[ -n $resolved ]] && selected=$resolved
-   fi
+# Work in the project's dir, if gc-proj knows one.
+if command -v gc-proj >/dev/null; then
+   resolved=$(gc-proj dir "$proj_dir" 2>/dev/null)
+   [[ -d $resolved ]] && selected=$resolved
 fi
 
 tmux_running=$(pgrep tmux)

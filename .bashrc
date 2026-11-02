@@ -198,5 +198,26 @@ if [[ $- == *i* ]] && command -v reps >/dev/null; then
     reps due
 fi
 
+# Subcommands that move the session's working dir also move the current shell.
+gc-proj() {
+    local d
+    case ${1:-} in
+        cd)
+            command gc-proj "$@" || return $?
+            if d=$(command gc-proj dir) && [[ -n $d ]]; then
+                builtin cd -- "$d"
+            fi
+            ;;
+        done)
+            # This shell's working dir would keep the project's tree busy.
+            builtin cd ~ || return
+            command gc-proj "$@"
+            ;;
+        *)
+            command gc-proj "$@"
+            ;;
+    esac
+}
+
 [ -f "$HOME/.bashrc.work" ] && source "$HOME/.bashrc.work"
 [ -f "$HOME/.bashrc.ai" ] && source "$HOME/.bashrc.ai"
