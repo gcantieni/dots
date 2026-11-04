@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Commit whatever changed under the gc-proj root, naming the projects touched.
+# Runs from Claude's SessionEnd hook and after bb exits.
+set -euo pipefail
+
+root=${GC_PROJ_ROOT:-$HOME/proj}
+if ! git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    exit 0
+fi
+
+git -C "$root" add -A
+if git -C "$root" diff --cached --quiet; then
+    exit 0
+fi
+
+names=$(git -C "$root" diff --cached --name-only |
+    awk -F/ '$1 == "archive" && NF > 3 { print $3; next } { print $1 }' |
+    sort -u | paste -sd' ')
+git -C "$root" commit -q -m "Update $names"
