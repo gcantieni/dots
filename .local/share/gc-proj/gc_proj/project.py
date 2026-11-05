@@ -9,7 +9,8 @@ from . import projfile, tmux, worktrees
 from .config import Config
 from .ui import Fail
 
-STATES = ("active", "review", "checkin", "done")
+# Board keys that a state can't take.
+RESERVED_KEYS = set("hjkluoARnbx*gq")
 PRUNED_DIRS = {".git", "target", "node_modules"}
 
 
@@ -218,9 +219,37 @@ def area_dir(cfg: Config, area: str) -> str:
     return Project(cfg.root / area, cfg).working_dir()
 
 
-def check_state(state: str) -> None:
-    if state not in STATES:
-        raise Fail(f"state must be one of: {' '.join(STATES)}")
+def states(cfg: Config) -> list[tuple[str, str]]:
+    """The configured states as (name, board key), in board order."""
+    out: list[tuple[str, str]] = []
+    for word in cfg.text("states").split():
+        name, _, key = word.partition(":")
+        key = key or name[:1]
+        if not re.fullmatch(r"[a-z][a-z0-9_-]*", name) or len(key) != 1:
+            raise Fail(f"states: bad entry '{word}' (want name or name:key)")
+        if key in RESERVED_KEYS:
+            raise Fail(f"states: '{name}' can't use board key '{key}'; give it one with {name}:<key>")
+        if any(n == name or k == key for n, k in out):
+            raise Fail(f"states: '{word}' repeats a name or key")
+        out.append((name, key))
+    if not out:
+        raise Fail("states: no states configured")
+    return out
+
+
+def state_names(cfg: Config) -> list[str]:
+    return [n for n, _ in states(cfg)]
+
+
+def default_state(cfg: Config) -> str:
+    """The state of a project that has none (or one no longer configured)."""
+    return state_names(cfg)[0]
+
+
+def check_state(cfg: Config, state: str) -> None:
+    names = state_names(cfg)
+    if state not in names:
+        raise Fail(f"state must be one of: {' '.join(names)}")
 
 
 def set_keys(cfg: Config, project: Project, pairs: list[str]) -> None:
@@ -234,7 +263,7 @@ def set_keys(cfg: Config, project: Project, pairs: list[str]) -> None:
             raise Fail(f"expected key=value, got '{kv}'")
         key, value = m.groups()
         if key == "state" and value:
-            check_state(value)
+            check_state(cfg, value)
         if key == "kind" and value not in ("", "area"):
             raise Fail("kind must be area or empty")
         if key == "area":

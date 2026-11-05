@@ -20,12 +20,23 @@ from .project import Project, all_projects, area_dir, current_area, jira_name, s
 from .ui import Cancelled, Fail
 from .util import self_command, self_env, write_atomic
 
-COLUMNS = ("active", "review", "checkin", "done")
-COLOR = {"active": "34", "review": "33", "checkin": "35", "done": "32", "area": "36"}
-LABEL = {"active": "ACTIVE", "review": "IN REVIEW", "checkin": "CHECKING IN", "done": "DONE"}
-AREA_COL = len(COLUMNS)
-HELP = ("hjkl/arrows move  tab areas  enter go  a r c d set state  u auto state  A area  R rename  "
-        "o+r/m/j open review/MR/Jira  n new  b break pane  x done  * all  g refresh  q quit")
+COLOR = {"active": "34", "review": "33", "checkin": "35", "done": "32", "waiting": "33", "area": "36"}
+LABEL = {"review": "IN REVIEW", "checkin": "CHECKING IN"}
+PALETTE = ("34", "33", "35", "32", "31")
+
+
+def state_color(state: str) -> str:
+    return COLOR.get(state) or PALETTE[sum(map(ord, state)) % len(PALETTE)]
+
+
+def state_label(state: str) -> str:
+    return LABEL.get(state) or state.upper()
+
+
+def help_line(cfg) -> str:
+    keys = " ".join(k for _, k in project.states(cfg))
+    return (f"hjkl/arrows move  tab areas  enter go  {keys} set state  u auto state  A area  R rename  "
+            "o+r/m/j open review/MR/Jira  n new  b break pane  x done  * all  g refresh  q quit")
 
 
 @dataclass
@@ -69,16 +80,17 @@ def collect(cfg, show_all: bool) -> list[Card]:
         branches = {k: f.result() for k, f in f_branches.items()}
 
     cards = []
+    names = project.state_names(cfg)
     for p in projs:
         state, key = p.get("state"), p.jira_key
         branch = branches[p.path]
         info = plugins.project_info(cfg, p, plugin_ctxs, branch)
         review = links.find_review(p, reviews, info.changes) if services.rb_enabled(cfg) else p.get("review")
         mr = links.find_mr(p, mrs, branch)
-        if not state:
-            state = "review" if review or mr else "active"
-        state = info.state or state
-        color = info.color or COLOR.get(state, "37")
+        if not state or state not in names:
+            state = "review" if (review or mr) and "review" in names else names[0]
+        state = info.state if info.state in names else state
+        color = info.color or state_color(state)
         parts = []
         if p.get("area"):
             parts.append("@" + p.get("area"))
@@ -107,12 +119,18 @@ def collect(cfg, show_all: bool) -> list[Card]:
 
 
 class Board:
-    def __init__(self, cards: list[Card]):
+    def __init__(self, cards: list[Card], cfg):
         self.cards = cards
+        self.states = project.state_names(cfg)
+        self.area_col = len(self.states)
         self.layout()
 
     def layout(self) -> None:
-        self.columns = [[i for i, c in enumerate(self.cards) if c.state == s] for s in COLUMNS]
+        # A card cached under a state that's no longer configured goes in the first column.
+        first = self.states[0]
+        self.columns = [[i for i, c in enumerate(self.cards)
+                         if c.state == s or (s == first and c.state not in self.states and c.state != "area")]
+                        for s in self.states]
         areas = [i for i, c in enumerate(self.cards) if c.state == "area"]
         areas.sort(key=lambda i: self.cards[i].touched, reverse=True)
         self.columns.append(areas)
@@ -139,7 +157,7 @@ class Board:
     def render(self, cfg, selected: int = -1, cols: Optional[int] = None) -> str:
         current = os.environ.get("PROJ", "")
         cols = cols or int(os.environ.get("BOARD_COLS") or 0) or ui.term_cols()
-        width = max((cols - 2) // len(COLUMNS) - 2, 12)
+        width = max((cols - 2) // len(self.states) - 2, 12)
         lines = []
 
         def card_style(i):
@@ -151,11 +169,11 @@ class Board:
         def mark(i):
             return "▸" if self.cards[i].dir == current else " "
 
-        lines.append("".join(f"\x1b[1;{COLOR[s]}m{ui.fit(LABEL[s], width)}\x1b[0m  " for s in COLUMNS))
-        lines.append("".join(f"\x1b[2m{'─' * width}\x1b[0m  " for _ in COLUMNS))
-        rows = max((len(c) for c in self.columns[:AREA_COL]), default=0)
+        lines.append("".join(f"\x1b[1;{state_color(s)}m{ui.fit(state_label(s), width)}\x1b[0m  " for s in self.states))
+        lines.append("".join(f"\x1b[2m{'─' * width}\x1b[0m  " for _ in self.states))
+        rows = max((len(c) for c in self.columns[:self.area_col]), default=0)
         for r in range(rows):
-            row = [col[r] if r < len(col) else -1 for col in self.columns[:AREA_COL]]
+            row = [col[r] if r < len(col) else -1 for col in self.columns[:self.area_col]]
             line = ""
             for i in row:
                 if i < 0:
@@ -172,9 +190,9 @@ class Board:
                         line += f"\x1b[2m{ui.fit('  ' + self.cards[i].detail, width)}\x1b[0m  "
                 lines.append(line)
 
-        areas = self.columns[AREA_COL]
+        areas = self.columns[self.area_col]
         if areas:
-            total = len(COLUMNS) * (width + 2) - 2
+            total = len(self.states) * (width + 2) - 2
             name_w, touched_w = 18, 16
             kids_w = max(total - name_w - touched_w - 6, 10)
             now = time.time()
@@ -185,7 +203,7 @@ class Board:
                 c = self.cards[i]
                 touched = f"touched {age_label(c.touched)}" if c.touched > 0 else "never touched"
                 flag, style = " ", f"1;{c.color}"
-                if c.touched == 0 or now - c.touched >= stale:
+                if stale and (c.touched == 0 or now - c.touched >= stale):
                     flag, style = "?", "1;33"
                 if i == selected:
                     style += ";7"
@@ -231,7 +249,7 @@ def cmd_status(cfg, a):
     if not cards:
         print("no projects with tmux sessions")
         return 0
-    sys.stdout.write(Board(cards).render(cfg))
+    sys.stdout.write(Board(cards, cfg).render(cfg))
     return 0
 
 
@@ -400,7 +418,9 @@ def cmd_board(cfg, a):
         sys.stdout.flush()
         cards = collect(cfg, show_all)
         save(cfg, show_all, cards)
-    board = Board(cards)
+    state_keys = {k: n for n, k in project.states(cfg)}
+    help_text = help_line(cfg)
+    board = Board(cards, cfg)
     sel = board.index(os.environ.get("PROJ", ""))
     board_sel = -1
     msg = ""
@@ -429,16 +449,16 @@ def cmd_board(cfg, a):
                     refresh = Refresh(cfg, show_all)
                 elif done.cards is not None:
                     keep = board.cards[sel].dir if 0 <= sel < len(board.cards) else ""
-                    board = Board(done.cards)
+                    board = Board(done.cards, cfg)
                     sel = board.index(keep)
                     redraw = True
 
             if redraw:
                 redraw = False
                 if not 0 <= sel < len(board.cards):
-                    sel = next((board.at(ci, 0) for ci in range(AREA_COL + 1) if board.at(ci, 0) >= 0), -1)
+                    sel = next((board.at(ci, 0) for ci in range(board.area_col + 1) if board.at(ci, 0) >= 0), -1)
                 frame = board.render(cfg, sel)
-                frame += f"\n\x1b[2m{'updating…  ' if refresh else ''}{HELP}\x1b[0m\n{msg}"
+                frame += f"\n\x1b[2m{'updating…  ' if refresh else ''}{help_text}\x1b[0m\n{msg}"
                 msg = ""
                 sys.stdout.write("\x1b[H" + frame.replace("\n", "\x1b[K\n") + "\x1b[K\x1b[J")
                 sys.stdout.flush()
@@ -455,11 +475,11 @@ def cmd_board(cfg, a):
             card = board.cards[sel] if sel >= 0 else None
 
             if key in ("h", "l"):
-                if ci == AREA_COL:
+                if ci == board.area_col:
                     continue
                 step = -1 if key == "h" else 1
                 t = ci + step
-                while 0 <= t < AREA_COL:
+                while 0 <= t < board.area_col:
                     new = board.at(t, ri)
                     if new >= 0:
                         sel = new
@@ -467,30 +487,30 @@ def cmd_board(cfg, a):
                     t += step
             elif key == "j":
                 new = board.at(ci, ri + 1)
-                if new == sel and ci < AREA_COL and board.at(AREA_COL, 0) >= 0:
+                if new == sel and ci < board.area_col and board.at(board.area_col, 0) >= 0:
                     board_sel = sel
-                    new = board.at(AREA_COL, 0)
+                    new = board.at(board.area_col, 0)
                 sel = new
             elif key == "k":
                 if ri > 0:
                     sel = board.at(ci, ri - 1)
-                elif ci == AREA_COL and 0 <= board_sel < len(board.cards) and board.cards[board_sel].state != "area":
+                elif ci == board.area_col and 0 <= board_sel < len(board.cards) and board.cards[board_sel].state != "area":
                     sel = board_sel
             elif key == "\t":
-                if ci == AREA_COL:
+                if ci == board.area_col:
                     if 0 <= board_sel < len(board.cards) and board.cards[board_sel].state != "area":
                         sel = board_sel
                     else:
-                        sel = next((board.at(c, 0) for c in range(AREA_COL) if board.at(c, 0) >= 0), sel)
-                elif board.at(AREA_COL, 0) >= 0:
+                        sel = next((board.at(c, 0) for c in range(board.area_col) if board.at(c, 0) >= 0), sel)
+                elif board.at(board.area_col, 0) >= 0:
                     board_sel = sel
-                    sel = board.at(AREA_COL, 0)
+                    sel = board.at(board.area_col, 0)
             elif key in ("\n", "\r"):
                 with term.suspend():
                     project.open_project(Project(card.dir, cfg))
                 return 0
-            elif key in "arcd":
-                new_state = {"a": "active", "r": "review", "c": "checkin", "d": "done"}[key]
+            elif key in state_keys:
+                new_state = state_keys[key]
                 if card.state == "area":
                     msg = f"{card.name} is an area; gc-proj set kind= first"
                     continue
@@ -499,7 +519,7 @@ def cmd_board(cfg, a):
                 except Fail as e:
                     msg = f"error: {e}"
                     continue
-                card.state, card.color = new_state, COLOR[new_state]
+                card.state, card.color = new_state, state_color(new_state)
                 board.layout()
                 save(cfg, show_all, board.cards)
                 if refresh is not None:
@@ -527,7 +547,7 @@ def cmd_board(cfg, a):
                     continue
                 with term.suspend():
                     new = pick_area(cfg, f"area for {card.name}",
-                                    [board.cards[i].name for i in board.columns[AREA_COL]])
+                                    [board.cards[i].name for i in board.columns[board.area_col]])
                 sys.stdout.write("\x1b[2J")
                 if new is None:
                     continue
@@ -594,7 +614,7 @@ def cmd_board(cfg, a):
                     sys.stdout.flush()
                     cards = collect(cfg, show_all)
                     save(cfg, show_all, cards)
-                board = Board(cards)
+                board = Board(cards, cfg)
                 sel = board.index(keep)
             elif key == "g":
                 if refresh is None:

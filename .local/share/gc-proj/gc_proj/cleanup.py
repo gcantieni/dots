@@ -6,7 +6,7 @@ import os
 import subprocess
 
 from . import links, plugins, services, tmux, trees, ui, worktrees
-from .project import Project, all_projects, find_current, require_current
+from .project import Project, all_projects, default_state, find_current, require_current
 from .ui import BOLD, CYAN, DIM, GREEN, RESET, YELLOW, Fail
 
 
@@ -71,7 +71,7 @@ def cmd_done(cfg, a):
         submitted = True
         print("state is done")
     else:
-        print(f"state is {state or 'active'}")
+        print(f"state is {state or default_state(cfg)}")
     if not submitted and not ui.confirm("not checked in; clean up anyway?", False):
         return 1
 

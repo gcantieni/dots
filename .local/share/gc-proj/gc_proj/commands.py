@@ -6,7 +6,7 @@ import os
 import subprocess
 
 from . import config, projfile, trees, services, tmux, ui, worktrees
-from .project import (Project, all_projects, area_dir, check_area, check_name, check_state,
+from .project import (Project, all_projects, area_dir, check_area, check_name, check_state, default_state,
                       current_area, jira_key_from_name, open_project, require_current,
                       require_env, resolve, set_keys)
 from .ui import Cancelled, Fail
@@ -241,9 +241,9 @@ def cmd_get(cfg, a):
 def cmd_state(cfg, a):
     p = require_current(cfg)
     if not a.state:
-        print(p.get("state") or "active")
+        print(p.get("state") or default_state(cfg))
         return
-    check_state(a.state)
+    check_state(cfg, a.state)
     p.update({"state": a.state})
 
 

@@ -33,6 +33,12 @@ still read, the first write replaces it, and `gc-proj migrate` converts them all
 Every setting can be overridden with `GC_PROJ_<SECTION>_<KEY>`, for example
 `GC_PROJ_JIRA_PROJECT`. `gc-proj config` shows each value and where it came from.
 
+States are whatever `states` lists. A project with no state (or one no longer listed)
+is in the first; `review`, if listed, also catches projects with an open review or MR,
+and `done` tells `gc-proj done` the work is finished. A state's board key defaults to
+its first letter; keys the board already uses (h j k l u o A R n b x * g q) need
+`name:key`.
+
 No settings are needed: without them `new` asks for a dir (or uses the area's),
 and projects, areas, states, the board, `done` and `prune` all work. Each extra
 is off until configured:
@@ -43,7 +49,8 @@ sandboxes = "~/src/*"           # offered by new and cd when no dir is given
 sandbox_subdir = ""             # appended to a picked sandbox
 branch_prefix = "me/"           # for new --tree branches
 new_tree = false                # make --tree the default for new
-area_stale_days = 21            # flag areas untouched this long
+area_stale_days = 21            # flag areas untouched this long; 0 turns it off
+states = "active review checkin done"  # board columns in order; name or name:key, first is the default
 
 [worktrees]                     # branch= projects share a pool of worktrees; see activate
 repo = "~/src/big-repo"

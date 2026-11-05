@@ -21,7 +21,10 @@ DEFAULTS: dict[str, Any] = {
     "sandbox_subdir": "",
     "branch_prefix": getpass.getuser() + "/",
     "new_tree": False,
-    "area_stale_days": 21,
+    "area_stale_days": 21,              # 0 turns the stale-area flag off
+    # Project states in board order, space-separated. Each is name or name:key, the key
+    # setting it on the board (default: its first letter). The first is the default state.
+    "states": "active review checkin done",
     # A git repo whose worktrees ("slots") hold the branches of branch= projects.
     "worktrees.repo": "",
     "worktrees.subdir": "",

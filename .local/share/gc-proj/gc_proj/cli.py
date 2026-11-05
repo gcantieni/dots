@@ -32,7 +32,8 @@ projects
   dir [project]        print the project's working dir, resolving branch= to its worktree
   get [key] [-p project]  print a key of the project, or all of them as JSON
   set key=value ...    set keys of the current project; key= removes one
-  state [state]        print or set the state: active, review, checkin or done
+  state [state]        print or set the state (the states setting; by default active, review,
+                       checkin or done)
   rename [project] <new-name>
                        rename a project and its tmux session, and an area's name in its projects
   run <key>            run the shell command in key <key>, with $dir and $PROJ set
@@ -59,7 +60,7 @@ project keys
   dir      the source tree to work in
   branch   worktree branch; overrides dir with the worktree holding it (subdir= within it)
   tree     tree made by new --tree; done offers to drop it
-  state    active, review, checkin or done
+  state    one of the states setting (default active, review, checkin, done)
   kind     "area" for a long-lived area of responsibility: it gets a panel on the board
            and done and prune leave it alone
   area     the area the project belongs to
