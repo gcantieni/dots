@@ -113,15 +113,16 @@ def cmd_done(cfg, a):
             print(ui.open_url(mr[1]))
 
     tree_branch = tree_url = ""
-    if tree and trees.enabled(cfg) and os.path.exists(os.path.join(trees.path(cfg, tree), ".git")):
-        tree_branch = trees.branch(cfg, tree)
-        tree_url = trees.remote_url(cfg, tree)
+    tree_repo = p.get("tree_repo")
+    if tree and trees.enabled(cfg) and os.path.exists(os.path.join(trees.path(cfg, tree, tree_repo), ".git")):
+        tree_branch = trees.branch(cfg, tree, tree_repo)
+        tree_url = trees.remote_url(cfg, tree, tree_repo)
 
     plugins.call("cleanup", cfg, p, proj_branch)
 
     if tree and trees.enabled(cfg):
         ui.phase("tree")
-        if not trees.cleanup(cfg, tree):
+        if not trees.cleanup(cfg, tree, tree_repo):
             raise Fail(f"tree {tree} not dropped; fix that and rerun gc-proj done")
 
     ui.phase("branch")

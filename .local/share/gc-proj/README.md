@@ -76,7 +76,9 @@ url = "https://rb.example.com"
 url = "https://gitlab.example.com"
 ```
 
-Tree commands run in bash with `{name}` and `{branch}` replaced (shell-quoted).
+Tree commands run in bash with `{name}`, `{branch}` and `{repo}` replaced (shell-quoted).
+`{repo}` is the git repo of the new project's area, so one set of commands makes trees in
+any area's repo; it's kept in the project's `tree_repo` key for `done`.
 `trees.new` may print the tree's path as its last line of output.
 
 API tokens come from `~/.netrc` entries for each host (Jira also takes

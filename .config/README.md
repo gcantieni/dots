@@ -64,8 +64,8 @@ hooks.
   launcher. The `gc-proj` shell function in `.bashrc` makes `gc-proj cd` move the
   current shell too, and has `gc-proj done` leave the project's tree first.
   On the Mac, `~/.config/gc-proj/config.local.toml` (untracked) sets the states to
-  active/waiting/done, turns off the stale-area flag, and makes `new --tree` worktrees in
-  `~/proj/tune_trove/.worktrees/`. The tracked `plugins/waiting.py` shows a waiting
+  active/waiting/done, turns off the stale-area flag, and makes `new --tree --area=<area>`
+  worktrees in `<area repo>/.worktrees/`. The tracked `plugins/waiting.py` shows a waiting
   project's note and age on its card: `gc-proj set state=waiting waiting="…"`. The fish
   wrapper is `~/.config/fish/functions/gc-proj.fish`.
 - **`tm`** — `fzf` attach to an existing session (simple alternative to the sessionizer).

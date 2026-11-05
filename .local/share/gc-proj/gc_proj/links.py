@@ -14,7 +14,7 @@ def project_branch(cfg, p: Project) -> str:
     b = p.get("branch")
     tree = p.get("tree")
     if not b and tree and trees.enabled(cfg):
-        b = trees.branch(cfg, tree)
+        b = trees.branch(cfg, tree, p.get("tree_repo"))
     if not b:
         d = p.working_dir()
         # A slot's branch belongs to whichever project activated it.

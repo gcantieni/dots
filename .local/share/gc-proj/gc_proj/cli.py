@@ -60,6 +60,7 @@ project keys
   dir      the source tree to work in
   branch   worktree branch; overrides dir with the worktree holding it (subdir= within it)
   tree     tree made by new --tree; done offers to drop it
+  tree_repo  the area's repo the tree was made in, when the trees commands use {repo}
   state    one of the states setting (default active, review, checkin, done)
   kind     "area" for a long-lived area of responsibility: it gets a panel on the board
            and done and prune leave it alone

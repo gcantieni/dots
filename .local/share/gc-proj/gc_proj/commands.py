@@ -50,6 +50,12 @@ def cmd_new(cfg, a):
     if tree and not trees.enabled(cfg):
         raise Fail("--tree needs trees.new and trees.path in the config")
 
+    tree_repo = ""
+    if tree and trees.uses_repo(cfg):
+        tree_repo = trees.area_repo(area_dir(cfg, area) if area else "")
+        if not tree_repo:
+            raise Fail("--tree makes the tree in the area's repo; give an --area whose dir is a git repo")
+
     projdir = cfg.root / name
     if projdir.exists():
         raise Fail(f"{projdir} already exists")
@@ -65,7 +71,7 @@ def cmd_new(cfg, a):
         if a.no_sandbox:
             sandbox = str(projdir)
         elif tree:
-            sandbox = trees.new_tree(cfg, name, cfg.text("branch_prefix") + name)
+            sandbox = trees.new_tree(cfg, name, cfg.text("branch_prefix") + name, tree_repo)
         elif not sandbox:
             sandbox = pick_sandbox(cfg)
     except BaseException:
@@ -75,6 +81,8 @@ def cmd_new(cfg, a):
     keys = {"dir": sandbox}
     if tree:
         keys["tree"] = name
+        if tree_repo:
+            keys["tree_repo"] = tree_repo
     if area:
         keys["area"] = area
     if a.jira and jira_key_from_name(name) != a.jira.upper():
