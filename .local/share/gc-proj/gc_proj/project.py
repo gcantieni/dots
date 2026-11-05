@@ -87,7 +87,7 @@ class Project:
     def contents_touched(self) -> int:
         """Newest mtime of anything in the project other than its project file; 0 if nothing."""
         return newest_mtime(self.path, include_root=False,
-                            skip={projfile.FILE, projfile.LEGACY_FILE})
+                            skip={projfile.FILE})
 
 
 def jira_key_from_name(name: str) -> str:

@@ -319,15 +319,6 @@ def cmd_jira_new(cfg, a):
     print(services.jira_create(cfg, " ".join(a.summary)))
 
 
-def cmd_migrate(cfg, a):
-    n = 0
-    for p in all_projects(cfg):
-        if projfile.migrate(p.path):
-            print(f"{p.name}: {projfile.LEGACY_FILE} -> {projfile.FILE}")
-            n += 1
-    print(f"{n} project(s) migrated")
-
-
 def cmd_config(cfg, a):
     width = max(len(k) for k, _ in cfg.items())
     for k, v in cfg.items():

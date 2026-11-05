@@ -24,8 +24,7 @@ Python 3.9+, standard library only. `gc-proj` here is the launcher, and
 
 Scripts should ask gc-proj instead of reading it: `gc-proj dir [project]` prints
 the working dir (resolving `branch=`), `gc-proj get <key> [-p project]` prints a
-key, and `gc-proj get` prints all of them. A legacy bash-sourceable `.proj` is
-still read, the first write replaces it, and `gc-proj migrate` converts them all.
+key, and `gc-proj get` prints all of them.
 
 ## Settings
 

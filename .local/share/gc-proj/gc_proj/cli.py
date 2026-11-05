@@ -44,7 +44,6 @@ projects
   board                interactive status board (press keys as its help line says)
   done                 clean the current project up step by step and archive it
   prune                review projects oldest-first and archive the ones you pick
-  migrate              convert every project's legacy .proj to .proj.json
 
 branches (worktrees.repo)
   branch [name]        tie the current project to a branch (pick one if no name)
@@ -134,7 +133,6 @@ COMMANDS = {
     "board": board.cmd_board,
     "done": cleanup.cmd_done,
     "prune": cleanup.cmd_prune,
-    "migrate": commands.cmd_migrate,
     "branch": commands.cmd_branch,
     "activate": commands.cmd_activate,
     "jira-new": commands.cmd_jira_new,

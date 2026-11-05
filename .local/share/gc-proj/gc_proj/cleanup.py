@@ -5,7 +5,7 @@ import datetime
 import os
 import subprocess
 
-from . import links, plugins, services, tmux, trees, ui, worktrees
+from . import links, plugins, projfile, services, tmux, trees, ui, worktrees
 from .project import Project, all_projects, default_state, find_current, require_current
 from .ui import BOLD, CYAN, DIM, GREEN, RESET, YELLOW, Fail
 
@@ -155,7 +155,7 @@ def show_card(cfg, p: Project, ts: int, idx: int, total: int) -> None:
     d = p.working_dir()
     if d:
         print(f"  {DIM}dir{RESET}           {d}")
-    files = sorted(f for f in os.listdir(p.path) if f not in (".proj", ".proj.json"))
+    files = sorted(f for f in os.listdir(p.path) if f != projfile.FILE)
     print(f"  {DIM}files{RESET}         {' '.join(files)}")
     for lines in plugins.call("prune_details", cfg, p):
         for line in lines:
