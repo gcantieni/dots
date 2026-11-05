@@ -1,13 +1,16 @@
--- Send the current visual selection to a running Claude agent living in a tmux
--- pane. Agents are discovered from the same records the `claude-status` script
--- reads (~/.claude/status/*.json, written by ~/bin/claude-status-hook), so this
--- shares the tmux-pane-as-agent model of the `prefix+a` overview.
+-- Send text to a running Claude agent living in a tmux pane. Agents are
+-- discovered from the same records the `claude-status` script reads
+-- (~/.claude/status/*.json, written by ~/bin/claude-status-hook), so this shares
+-- the tmux-pane-as-agent model of the `prefix+a` overview.
 --
--- With one live agent, the selection is sent straight to it. With several, a
--- telescope picker lists them by the status "description" fields (state, summary,
--- cwd, session:window) with a live pane preview, then sends to the chosen one.
+-- The chosen agent is remembered per nvim instance (vim.g, so it survives
+-- <leader>R) and reused while its pane is alive. Otherwise: with one live agent
+-- it's used directly; with several, a telescope picker lists them by the status
+-- "description" fields with a live pane preview. <leader>ap re-picks.
 -- After pasting, focus switches to that pane so you can add a prompt and hit
 -- Enter.
+
+local M = {}
 
 local status_dir = vim.fn.expand '~/.claude/status'
 local claude_status = vim.fn.expand '~/bin/claude-status'
@@ -87,26 +90,29 @@ end
 
 -- Paste text into a pane as one bracketed block (so multi-line selections don't
 -- submit early), then switch focus to that pane. Mirrors the jump sequence in
--- ~/bin/claude-status.
+-- ~/bin/claude-status. Returns true on success.
 local function send_and_focus(pane, text)
   vim.fn.system({ 'tmux', 'load-buffer', '-b', 'nvim-claude-send', '-' }, text)
   if vim.v.shell_error ~= 0 then
     vim.notify('claude-send: tmux load-buffer failed', vim.log.levels.ERROR)
-    return
+    return false
   end
   vim.fn.system { 'tmux', 'paste-buffer', '-d', '-p', '-b', 'nvim-claude-send', '-t', pane }
   if vim.v.shell_error ~= 0 then
     vim.notify('claude-send: tmux paste-buffer failed (pane gone?)', vim.log.levels.ERROR)
-    return
+    vim.g.claude_send_pane = nil
+    return false
   end
+  vim.g.claude_send_pane = pane
   vim.fn.system { 'tmux', 'switch-client', '-t', pane }
   vim.fn.system { 'tmux', 'select-window', '-t', pane }
   vim.fn.system { 'tmux', 'select-pane', '-t', pane }
+  return true
 end
 
 -- Telescope picker over the agents; reuses the pattern in core.ai_term_gf and
 -- previews the pane via `claude-status --preview` (its output-trimming logic).
-local function pick_agent(agents, text)
+local function pick_agent(agents, on_pick)
   local pickers = require 'telescope.pickers'
   local finders = require 'telescope.finders'
   local conf = require('telescope.config').values
@@ -116,7 +122,7 @@ local function pick_agent(agents, text)
 
   pickers
     .new({}, {
-      prompt_title = 'Send selection to Claude',
+      prompt_title = 'Pick Claude agent',
       finder = finders.new_table {
         results = agents,
         entry_maker = function(rec)
@@ -135,7 +141,7 @@ local function pick_agent(agents, text)
           local selection = action_state.get_selected_entry()
           actions.close(prompt_bufnr)
           if selection then
-            send_and_focus(selection.value.pane, text)
+            on_pick(selection.value.pane)
           end
         end)
         return true
@@ -144,10 +150,12 @@ local function pick_agent(agents, text)
     :find()
 end
 
-local function send_selection()
-  local text = get_visual_selection()
-  if not text or text == '' then
-    vim.notify('claude-send: no visual selection', vim.log.levels.WARN)
+-- Call on_pick(pane) with the remembered agent if its pane is alive, else the
+-- only live agent, else one picked from a list. force always shows the picker.
+function M.with_agent(on_pick, force)
+  local remembered = vim.g.claude_send_pane
+  if not force and remembered and live_panes()[remembered] then
+    on_pick(remembered)
     return
   end
   local agents = list_agents()
@@ -155,12 +163,50 @@ local function send_selection()
     vim.notify('claude-send: no live Claude agents', vim.log.levels.WARN)
     return
   end
-  if #agents == 1 then
-    send_and_focus(agents[1].pane, text)
+  if #agents == 1 and not force then
+    on_pick(agents[1].pane)
     return
   end
-  pick_agent(agents, text)
+  pick_agent(agents, on_pick)
+end
+
+function M.send(text, force)
+  M.with_agent(function(pane)
+    send_and_focus(pane, text)
+  end, force)
+end
+
+-- For callers that need a synchronous result (review.nvim's on_export): sends
+-- to the remembered agent if alive, else falls back to M.send (async picker).
+function M.send_sync(text)
+  local pane = vim.g.claude_send_pane
+  if pane and live_panes()[pane] then
+    return send_and_focus(pane, text)
+  end
+  vim.schedule(function()
+    M.send(text)
+  end)
+  return true
+end
+
+local function send_selection()
+  local text = get_visual_selection()
+  if not text or text == '' then
+    vim.notify('claude-send: no visual selection', vim.log.levels.WARN)
+    return
+  end
+  M.send(text)
+end
+
+local function repick()
+  M.with_agent(function(pane)
+    vim.g.claude_send_pane = pane
+    vim.notify('claude-send: agent set to ' .. pane)
+  end, true)
 end
 
 vim.keymap.set('x', '<leader>as', send_selection, { desc = 'Send selection to Claude' })
 vim.keymap.set('x', '<F5>', send_selection, { desc = 'Send selection to Claude' })
+vim.keymap.set('n', '<leader>ap', repick, { desc = 'Pick Claude agent' })
+
+return M

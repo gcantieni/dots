@@ -100,6 +100,7 @@ require('lazy').setup({
         { '<leader>d', group = '[D]ebug' },
         { '<leader>v', group = '[V]imgrep' },
         { '<leader>l', group = '[L]sp' },
+        { '<leader>a', group = '[A]I/Claude', mode = { 'n', 'x' } },
       },
     },
   },
