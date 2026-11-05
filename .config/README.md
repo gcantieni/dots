@@ -237,6 +237,7 @@ Prefix is **Ctrl-Space**. Highlights:
 | `prefix f` / `prefix Space` | sessionizer (new window running `tmux-sessionizer`) |
 | `prefix ,` | fzf popup: jump to another session (with pane preview) |
 | `prefix a` | Claude agent overview popup (`claude-status`) |
+| `prefix s` | `gc-proj board` popup (replaces the default session tree) |
 | `M-v` (no prefix) | dictate: toggle record → paste transcript into this pane |
 | `prefix v` / `prefix V` | same, but prefixed / transcribe to clipboard |
 | `prefix C-v` | cancel an in-progress recording, discarding it |
