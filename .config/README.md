@@ -247,7 +247,7 @@ Prefix is **Ctrl-Space**. Highlights:
 | `prefix v` / `prefix V` | same, but prefixed / transcribe to clipboard |
 | `prefix C-v` | cancel an in-progress recording, discarding it |
 | `prefix ]` | paste the X clipboard (bracketed) — replaces default paste-buffer |
-| `prefix C-k` | kill current session |
+| `prefix k` | kill current session (asks first; you land in another session) |
 | `prefix R` | rename window; `prefix E` | move window to the end |
 | `prefix \|` / `prefix -` | split horizontal / vertical |
 | `prefix y` / `prefix u` | toggle display / send sudo pass |
