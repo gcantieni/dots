@@ -150,7 +150,7 @@ case ${1:-} in
     for cp in $(pgrep -x claude 2>/dev/null); do
       pane=$(pane_of_pid "$cp") || continue
       [[ -z $pane || -n ${pane_cwd[$pane]:-} ]] && continue
-      pane_cwd[$pane]=$(readlink "/proc/$cp/cwd" 2>/dev/null)
+      pane_cwd[$pane]=$(readlink "/proc/$cp/cwd" 2>/dev/null || lsof -a -p "$cp" -d cwd -Fn 2>/dev/null | sed -n "s/^n//p")
     done
     for pane in "${!pane_cwd[@]}"; do
       cwd_n[${pane_cwd[$pane]}]=$(( ${cwd_n[${pane_cwd[$pane]}]:-0} + 1 ))
