@@ -6,7 +6,7 @@
 -- The chosen agent is remembered per nvim instance (vim.g, so it survives
 -- <leader>R) and reused while its pane is alive. Otherwise: with one live agent
 -- it's used directly; with several, a telescope picker lists them by the status
--- "description" fields with a live pane preview. <leader>ap re-picks.
+-- "description" fields with a live pane preview. <leader>cp re-picks.
 -- After pasting, focus switches to that pane so you can add a prompt and hit
 -- Enter.
 
@@ -205,8 +205,8 @@ local function repick()
   end, true)
 end
 
-vim.keymap.set('x', '<leader>as', send_selection, { desc = 'Send selection to Claude' })
+vim.keymap.set('x', '<leader>cs', send_selection, { desc = 'Send selection to Claude' })
 vim.keymap.set('x', '<F5>', send_selection, { desc = 'Send selection to Claude' })
-vim.keymap.set('n', '<leader>ap', repick, { desc = 'Pick Claude agent' })
+vim.keymap.set('n', '<leader>cp', repick, { desc = 'Pick Claude agent' })
 
 return M

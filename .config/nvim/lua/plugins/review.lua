@@ -12,10 +12,10 @@ return {
   event = 'VeryLazy',
   cmd = 'Review',
   keys = {
-    { '<leader>aq', '<cmd>Review qc<cr>', desc = 'Comment line for Claude' },
-    { '<leader>aq', ':Review qc<cr>', mode = 'x', desc = 'Comment range for Claude' },
-    { '<leader>al', '<cmd>Review qp<cr>', desc = 'List Claude comments' },
-    { '<leader>aS', send_comments, desc = 'Send comments to Claude' },
+    { '<leader>cq', '<cmd>Review qc<cr>', desc = 'Comment line for Claude' },
+    { '<leader>cq', ':Review qc<cr>', mode = 'x', desc = 'Comment range for Claude' },
+    { '<leader>cl', '<cmd>Review qp<cr>', desc = 'List Claude comments' },
+    { '<leader>cS', send_comments, desc = 'Send comments to Claude' },
   },
   opts = {
     export = {
