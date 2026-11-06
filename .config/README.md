@@ -3,18 +3,14 @@
 Reference for future agents working in this environment. Describes how the tmux
 session/project/agent workflow fits together and where the pieces live.
 
-> **Scope:** these dotfiles are shared across several machines: a Linux work box
-> (paired with a Windows VM over SSH), a macOS home MacBook, and more to come. This
-> README only covers what is shared between them. Machine-specific setup lives in
-> untracked or site-only files (see "Site-specific config" below) and in `docs/`,
-> where each doc says which machine it applies to. Check `uname` before assuming
-> Linux-only tools like `xclip`, `parec` or GNOME settings exist.
-> General coding conventions live in `~/AGENTS.md`.
+> Environment note: this is a Linux host paired with a Windows VM (Cygwin), SSH'd via
+> Windows OpenSSH. Claude Code and everything below run on the **Linux** side.
+> General coding conventions live in `~/AGENTS.md` (`~/.config/../AGENTS.md`).
 
 ## Version control
 
 Dotfiles (including this README) live in a **bare git repo** at `~/.dots`, worked
-against `$HOME`. The `dots` alias (in `~/.bashrc` and `fish/config.fish`) wraps git for it:
+against `$HOME`. The `dots` alias (in `~/.bashrc`) wraps git for it:
 
 ```sh
 alias dots='/usr/bin/git --git-dir "$HOME/.dots/" --work-tree "$HOME"'
@@ -67,9 +63,6 @@ hooks.
   whose README covers its settings and plugins, and `~/bin/gc-proj` links to its
   launcher. The `gc-proj` shell function in `.bashrc` makes `gc-proj cd` move the
   current shell too, and has `gc-proj done` leave the project's tree first.
-  Per-machine settings (board states, worktree layout) go in the untracked
-  `~/.config/gc-proj/config.local.toml`, so the states differ between machines. The
-  fish wrapper is `~/.config/fish/functions/gc-proj.fish`.
 - **`tm`** — `fzf` attach to an existing session (simple alternative to the sessionizer).
 
 ### The project file
@@ -80,14 +73,15 @@ hooks.
   "build": "cd \"$dir/module\" && make"
 }
 ```
-Read it with `gc-proj dir` or `gc-proj get <key>` rather than parsing it.
+Read it with `gc-proj dir` or `gc-proj get <key>` rather than parsing it. An old
+bash-sourceable `.proj` is still read, and `gc-proj migrate` converts it.
 `$PROJ` points at the `~/proj/<name>` dir. `$dir` (in `gc-proj run` commands) and the
 resolved cwd point at the source tree.
 
 ### Claude agent monitoring
 - **`claude-status-hook <state>`** — invoked from Claude Code hooks (see
   `~/.claude/settings.json`). Maps hook events → states and writes one JSON record per
-  agent to `~/.claude/status/pane-<pane_id>.json`, keyed to its tmux pane. States:
+  agent to `~/.claude/status/<session_id>.json`, keyed to its `$TMUX_PANE`. States:
   `idle` (SessionStart), `busy` (UserPromptSubmit / PreToolUse), `done` (Stop),
   `waiting` (Notification — but only a *real* permission/elicitation prompt; a plain
   idle_prompt is downgraded to idle/done), `end` (SessionEnd, removes the record). It
@@ -111,42 +105,74 @@ resolved cwd point at the source tree.
   `hidutil`); **`nvr-edit`** opens a file from an nvim `:terminal` in that nvim;
   **`gc-type-char`** types a character into the focused X11 window.
 
-### Dictation
-`gc-dictate` (local whisper.cpp speech-to-text, Linux box only) is documented in
-[`docs/dictation.md`](docs/dictation.md).
+## tmux bindings (see `~/.tmux.conf`)
 
-## tmux
+Prefix is **Ctrl-Space**. Highlights:
 
-I live in tmux: one session per project, usually with nvim, a shell and a Claude
-agent in it. Config is `~/.tmux.conf` (prefix **Ctrl-Space**), with per-machine
-overrides in `~/.tmux.conf.local`. Read the config for bindings. The non-obvious parts:
+| Binding | Action |
+|---|---|
+| `prefix f` / `prefix Space` | sessionizer (new window running `tmux-sessionizer`) |
+| `prefix ,` | fzf popup: jump to another session (with pane preview) |
+| `prefix a` | Claude agent overview popup (`claude-status`) |
+| `prefix ]` | paste the X clipboard (bracketed) — replaces default paste-buffer |
+| `prefix C-k` | kill current session |
+| `prefix R` | rename window; `prefix E` | move window to the end |
+| `prefix \|` / `prefix -` | split horizontal / vertical |
+| `prefix y` / `prefix u` | toggle display / send sudo pass |
+| `prefix r` | reload `~/.tmux.conf` |
 
-- **Sessions come from gc-proj, not tmux.** `tmux-sessionizer` (prefix+f) lists
-  `~/proj/*`, asks `gc-proj dir` where that project's source lives, and opens or
-  attaches a session named after the project, rooted at the source tree and with
-  `$PROJ` pointing back at `~/proj/<name>`. So the session name, its cwd and `$PROJ`
-  are three different things.
-- **`gc-proj board`** (prefix+s, replacing the default session tree) is the
-  overview of all projects grouped by state (e.g. active/waiting/done). From it you
-  can jump to a project's session, rename, re-file or finish it. State is set with
-  `gc-proj set state=…` and stored in `.proj.json`.
-- **prefix+a** is the Claude agent overview (`claude-status`, below).
-- Status-bar glyphs are basic Unicode (`✻`, `●◆✔○`) emitted as octal `printf`
-  escapes, not Nerd Font codepoints: the bar's font can't render FontAwesome glyphs,
-  and the shell drawing the bar doesn't expand `$'\u…'`.
+Other config: vi mode-keys, mouse on, status bar on top, base-index 1,
+`renumber-windows on`, 75k scrollback, clipboard integration (`set-clipboard on`,
+`y` in copy-mode pipes to `xclip`). Status-right shows live Claude agent counts
+(`@claude_status`, prefixed cyan `✻`) then the clock. Plugins: `tpm` +
+`tmux-resurrect`. Local overrides go in `~/.tmux.conf.local`.
 
-## nvim
+Label glyphs are basic-Unicode (Dingbats `✻` U+273B) and emitted as octal `printf`
+escapes, not Nerd Font PUA codepoints — the status-bar font renders those but not
+FontAwesome-v5 glyphs, and `$'\u…'` isn't expanded by the shell that draws the bar.
+The per-state count glyphs (●◆✔○) are likewise basic Unicode.
 
-See [`nvim/README.md`](nvim/README.md) for the non-obvious parts. The basic
-layout (`lua/core` vs `lua/plugins`) is in `~/.config/CLAUDE.md`.
+## nvim (`~/.config/nvim`)
+
+lazy.nvim setup, kickstart-derived. Leader is **Space**, localleader is **`,`**
+(buffer-local mappings in special views). Two things to know before editing:
+
+- **`lua/core/*.lua`** — auto-loaded alphabetically by `init.lua` and *hot-reloadable*
+  with **`<leader>R`** (re-`require`s the whole `core.*` namespace in place; does **not**
+  reload plugin specs). Splits: `options.lua`, `keymaps.lua`, `autocmds.lua` (each
+  augroup is cleared on re-source so handlers don't stack). Since every file there is
+  loaded, a site module is just another file in that directory. Custom modules alongside:
+  - `claude_send.lua` — send visual selection to a Claude agent in a tmux pane
+    (**`<F5>`** / `<leader>as`); discovers agents from the same `~/.claude/status/*.json`
+    records `claude-status` reads.
+  - `vscode.lua` — hand the buffer to VS Code for a debug session (`<leader>dv`).
+    Its root detection takes extra probes from `M.root_probes`.
+  - `ai_term_gf.lua` — `gf` in terminal buffers, resolving paths against the term's cwd.
+  - `termcwd.lua`, `trace.lua`, `nvr.lua`, `softwrap.lua`, `formatlist.lua` — helpers.
+- **Telescope outside git repos** — a tree that isn't a git repo gives ripgrep no
+  `.gitignore` to honour, so it lists every build artifact right next to the sources.
+  `plugins/telescope.lua` therefore passes `--ignore-file=~/.config/ripgrep/ignore` in
+  both `pickers.find_files.find_command` and `defaults.vimgrep_arguments`. Add
+  exclusions to that ignore file, not to the Lua. Hand-edited test expectation files
+  (`*.out+`, `*.argv`, …) are deliberately kept. `:TelescopeArtifacts` toggles the
+  filter off when you do want the artifacts — a picker's `no_ignore = true` won't work,
+  since rg's `--no-ignore` does not undo `--ignore-file`. The same ignore file is wired
+  into shell `rg` via `~/.config/ripgrep/ripgreprc` + `RIPGREP_CONFIG_PATH` in
+  `.bashrc`; `rg --no-config` opts out there.
+- **`lua/plugins/*.lua`** — one file per plugin spec, auto-imported via
+  `{ import = 'plugins' }`. Add a plugin by dropping a file here; edit specs need
+  `:Lazy sync`/`reload`, not `<leader>R`. Leader-group labels live in the `which-key`
+  spec in `init.lua`.
 
 ## Claude Code hook wiring (`~/.claude/settings.json`)
 
-`settings.json` is **not** in `dots`, because it holds work-specific settings, so
-add these hooks by hand on each new machine (after prompting). Every relevant lifecycle event calls
-`claude-status-hook`: `SessionStart→idle`, `UserPromptSubmit→busy`,
-`PreToolUse→busy`, `Stop→done`, `Notification→waiting`, `SessionEnd→end`, each as
-`$HOME/bin/claude-status-hook <state>`. Without them `~/.claude/status/` stays
-empty: the `prefix a` overview, the status-bar counts and nvim's send-to-Claude all
-find no agents. After adding them, `claude-status --rescan` registers agents that
-are already running.
+Every relevant lifecycle event calls `claude-status-hook`:
+`SessionStart→idle`, `UserPromptSubmit→busy`, `PreToolUse→busy`, `Stop→done`,
+`Notification→waiting`, `SessionEnd→end`. This is what makes the `prefix a` overview
+and the status-bar agent counts work. `effortLevel` is `high`.
+
+## Typical loop
+
+1. `prefix f` → pick a project → lands in a tmux session at the source.
+2. Open `nvim` in one window; run a Claude agent in another.
+3. Fan out across projects; use `prefix a` to jump to whichever agent needs attention.
