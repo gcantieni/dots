@@ -4,7 +4,8 @@
       Once per board refresh, in a worker thread. ctx goes to project_info.
   project_info(cfg, project, ctx, branch) -> Info
       What the plugin adds to a project's card, and the ids of its changes
-      (matched against review requests).
+      (matched against review requests). links maps a key to (label, url) for
+      the board's o.
   checkin_status(cfg, project) -> (submitted, line) or None
       For done: whether the project's work is in, and a line saying how it knows.
   cleanup(cfg, project, branch)
@@ -33,6 +34,7 @@ class Info:
     detail: list[str] = field(default_factory=list)
     state: Optional[str] = None
     color: Optional[str] = None
+    links: dict[str, tuple[str, str]] = field(default_factory=dict)
 
 
 @lru_cache(maxsize=None)
@@ -80,6 +82,7 @@ def merge(infos: list[Info]) -> Info:
             continue
         merged.changes += i.changes
         merged.detail += i.detail
+        merged.links.update(i.links)
         if i.state is not None:
             merged.state = i.state
         if i.color is not None:

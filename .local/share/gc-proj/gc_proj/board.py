@@ -11,7 +11,7 @@ import threading
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 from typing import Optional
 
 from . import links, plugins, project, services, tmux, ui
@@ -36,7 +36,7 @@ def state_label(state: str) -> str:
 def help_line(cfg) -> str:
     keys = " ".join(k for _, k in project.states(cfg))
     return (f"hjkl/arrows move  tab areas  enter go  {keys} set state  u auto state  A area  R rename  "
-            "o+r/m/j open review/MR/Jira  n new  b break pane  x done  * all  g refresh  q quit")
+            "o+r/m/j… open review/MR/Jira/…  n new  b break pane  x done  * all  g refresh  q quit")
 
 
 @dataclass
@@ -53,6 +53,7 @@ class Card:
     key_url: str = ""
     touched: int = 0
     kids: str = ""
+    links: dict = field(default_factory=dict)
 
 
 def collect(cfg, show_all: bool) -> list[Card]:
@@ -105,7 +106,8 @@ def collect(cfg, show_all: bool) -> list[Card]:
             dir=str(p.path), name=p.name, state=state, color=color, detail=" · ".join(parts),
             review=review, review_url=services.rb_review_url(cfg, review) if review and services.rb_enabled(cfg) else "",
             mr=mr[1] if mr else "", key=key,
-            key_url=services.jira_browse(cfg, key) if key and services.jira_enabled(cfg) else ""))
+            key_url=services.jira_browse(cfg, key) if key and services.jira_enabled(cfg) else "",
+            links=info.links))
 
     # An area was touched when it, one of its projects or one of their tmux
     # sessions last was.
@@ -529,10 +531,13 @@ def cmd_board(cfg, a):
                     Project(card.dir, cfg).update({"state": ""})
                     refreshed()
             elif key == "o":
-                sys.stdout.write("\r\x1b[Kopen: r review  m merge request  j Jira")
+                extra = "".join(f"  {k} {label}" for k, (label, _) in card.links.items())
+                sys.stdout.write(f"\r\x1b[Kopen: r review  m merge request  j Jira{extra}")
                 sys.stdout.flush()
                 sub = term.key()
-                if sub == "r":
+                if sub in card.links:
+                    msg = ui.open_url(card.links[sub][1])
+                elif sub == "r":
                     msg = ui.open_url(card.review_url) if card.review_url else \
                         f"no review found for {card.name}; gc-proj set review=N"
                 elif sub == "m":
