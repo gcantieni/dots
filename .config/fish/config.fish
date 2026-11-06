@@ -73,6 +73,10 @@ if status is-interactive
   alias src="source ~/.config/fish/config.fish"
   alias v='$EDITOR'
 
+  alias cco='claude --model opus'
+  alias ccs='claude --model sonnet'
+  alias cch='claude --model haiku'
+
   if test -f ~/.config/fish/private.fish
     source ~/.config/fish/private.fish
   end
