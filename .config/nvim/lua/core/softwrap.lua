@@ -6,7 +6,7 @@
 -- reading them unwrapped is worse, so they are displayed as though wrapped;
 -- nothing on disk is touched. Membership is a property of the document, not of
 -- its location, so it is recognized from the line lengths themselves --
--- `<leader>fw` overrides the guess in either direction.
+-- `<leader>ow` overrides the guess in either direction.
 
 local M = {}
 
@@ -108,8 +108,6 @@ local function wants_softwrap(buf)
   end
   return M.detect(buf)
 end
-
-vim.keymap.set('n', '<leader>fw', M.toggle, { desc = '[F]ile soft [W]rap' })
 
 -- BufWinEnter rather than FileType: half of these options are window-local, so
 -- they have to be reapplied every time the buffer lands in a window (and undone

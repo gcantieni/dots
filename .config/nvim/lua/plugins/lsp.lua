@@ -143,9 +143,9 @@ return {
           --
           -- This may be unwanted, since they displace some of your code
           if client and client_supports_method(client, vim.lsp.protocol.Methods.textDocument_inlayHint, event.buf) then
-            map('<leader>ti', function()
+            map('<leader>oi', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
-            end, '[T]oggle [I]nlay Hints')
+            end, '[O]ption [I]nlay Hints')
           end
         end,
       })

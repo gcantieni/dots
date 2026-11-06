@@ -95,6 +95,7 @@ require('lazy').setup({
         { '<leader>p', group = '[P]4' },
         { '<leader>q', group = '[Q]uickfix' },
         { '<leader>f', group = '[F]ile' },
+        { '<leader>o', group = '[O]ptions' },
         { '<leader>j', group = '[J]ournal' },
         { '<leader>g', group = '[G]it' },
         { '<leader>d', group = '[D]ebug' },

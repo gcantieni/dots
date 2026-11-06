@@ -33,17 +33,11 @@ vim.keymap.set('t', 'kj', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 vim.keymap.set('x', '<leader>p', '"_d"+P', { desc = 'Replace selection with system clipboard' })
 
--- could make more of a prefix someday.
-local function toggle_file_spelling()
-  vim.wo.spell = not vim.wo.spell
-end
-
 local function yank_current_file_path()
   local file_path = vim.fn.expand '%:p'
   vim.fn.setreg('+', file_path)
   print('Yanked: ', file_path)
 end
-vim.keymap.set('n', '<leader>fp', toggle_file_spelling, { desc = '[F]ile s[P]elling' })
 vim.keymap.set('n', '<leader>fy', yank_current_file_path, { desc = '[F]ile [Y]ank path' })
 
 local function open_proj_file(file)
