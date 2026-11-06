@@ -46,8 +46,9 @@ for _, err in ipairs(load_core_modules()) do
 end
 
 -- <leader>R reloads lua/core/* (options, keymaps, commands, autocmds) in place.
--- It does NOT reload plugin specs -- for those, use :Lazy sync / :Lazy reload
--- <name> or restart nvim.
+-- It does NOT reload plugin specs -- for those, use :Lazy install / :Lazy clean /
+-- :Lazy reload <name> or restart nvim. Not :Lazy sync, which also updates every
+-- plugin and rewrites lazy-lock.json.
 vim.keymap.set('n', '<leader>R', reload_core_config, { desc = '[R]eload core config (not plugins)' })
 
 -- Bootstrap lazy.nvim
@@ -140,6 +141,9 @@ require('lazy').setup({
   -- In normal mode type `<space>sh` then write `lazy.nvim-plugin`
   -- you can continue same window with `<space>sr` which resumes last telescope search
 }, {
+  -- Fetch weekly in the background; the count shows in the statusline (see
+  -- mini.lua) instead of a notification on every startup.
+  checker = { enabled = true, notify = false, frequency = 7 * 24 * 3600 },
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
     -- default lazy.nvim defined Nerd Font icons, otherwise define a unicode icons table

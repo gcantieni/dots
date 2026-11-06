@@ -28,7 +28,8 @@ return { -- Collection of various small independent plugins/modules
     -- cursor location to LINE:COLUMN
     ---@diagnostic disable-next-line: duplicate-set-field
     statusline.section_location = function()
-      return '%2l:%-2v'
+      local updates = require('lazy.status').updates()
+      return (updates and updates .. ' ' or '') .. '%2l:%-2v'
     end
 
     -- ... and there is more!
