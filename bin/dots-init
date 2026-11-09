@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run once per host to configure the ~/.dots repo.
+set -e
+dots() { git --git-dir="$HOME/.dots" --work-tree="$HOME" "$@"; }
+
+dots config core.hooksPath "$HOME/.config/dots/hooks"
+dots config status.showUntrackedFiles no
+dots config pull.rebase true
+dots config rebase.autostash true
+dots config push.autoSetupRemote true
+
+echo "dots configured: hooks at $HOME/.config/dots/hooks"

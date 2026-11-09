@@ -1,0 +1,5 @@
+#!/bin/sh
+# Push in the background after every commit; output goes to $GIT_DIR/push.log.
+git_dir=$(git rev-parse --absolute-git-dir)
+GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
+  nohup git push --quiet >"$git_dir/push.log" 2>&1 &

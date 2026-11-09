@@ -63,6 +63,14 @@ if status is-interactive
 
   complete -c dots -a '(complete -C"commandline -ct")'
 
+  # Fast-forward dots in the background at most every 4 hours.
+  set -l dots_stamp "$HOME/.dots/last-pull"
+  if test -d "$HOME/.dots"; and not test -n "$(find $dots_stamp -mmin -240 2>/dev/null)"
+    touch $dots_stamp
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
+      sh -c 'git --git-dir="$HOME/.dots" --work-tree="$HOME" pull --ff-only --quiet >"$HOME/.dots/pull.log" 2>&1 &'
+  end
+
   if set -q NVIM
     set -x EDITOR 'nvr'
   else
