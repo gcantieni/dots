@@ -42,8 +42,6 @@ Everything is reversible with the mouse via Terminal. In order of escalation:
        defaults -currentHost write -g com.apple.keyboard.modifiermapping.0-0-0 \
          '({HIDKeyboardModifierMappingSrc=30064771129;HIDKeyboardModifierMappingDst=30064771113;})'
 
-   Original value is also saved in ~/bin/native-modifiermapping-0-0-0.backup
-
 3. Remove the whole setup:
 
        launchctl bootout gui/$(id -u)/com.gus.esc-caps-swap
@@ -51,7 +49,7 @@ Everything is reversible with the mouse via Terminal. In order of escalation:
        rm ~/bin/esc-caps-ensure ~/bin/com.gus.esc-caps-swap.plist
        hidutil property --set '{"UserKeyMapping":[]}'
 
-   Previous esc-switch is at ~/bin/esc-switch.bak
+   Previous esc-switch: `dots show 9b595f6:bin/esc-switch`
 
 4. Last resort, no terminal needed: System Settings > Keyboard >
    Keyboard Shortcuts > Modifier Keys sets Caps Lock behaviour per keyboard.
