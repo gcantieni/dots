@@ -1,0 +1,5 @@
+#!/bin/sh
+# Terse tmux window name for a Claude pane: first two meaningful words of its title, kebab-case.
+name=$(printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/tune[^a-z0-9]*trove//g' | tr -cs 'a-z0-9' '\n' |
+  grep -vxE '(a|an|the|to|of|for|and|or|in|on|with|from|by|at|is|claude|code)?' | head -2 | paste -sd- -)
+printf 'c:%s\n' "${name:-claude}"
