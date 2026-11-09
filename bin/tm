@@ -1,5 +1,79 @@
-#!/bin/bash
+#!/usr/bin/env python3
+"""Attach to a tmux session.
 
-sess=$(tmux ls | cut -d':' -f1 | fzf --header attach-to-session)
+With no tmux server, mount the sandfork trees first so the panes continuum
+restores open in mounted trees.
+"""
 
-tmux a -t "$sess"
+import os
+import shutil
+import subprocess
+import sys
+
+
+def tmux_running() -> bool:
+    return subprocess.run(["tmux", "has-session"], stderr=subprocess.DEVNULL, check=False).returncode == 0
+
+
+def unmounted_trees() -> list[str]:
+    out = subprocess.run(["sandfork", "list"], cwd="/", stdout=subprocess.PIPE, text=True, check=True).stdout
+    trees = []
+    for line in out.splitlines()[1:]:
+        fields = line.split()
+        # Unfinished trees have "-" as their template and can't be mounted.
+        if len(fields) >= 3 and fields[1] != "-" and fields[2] == "no":
+            trees.append(fields[0])
+    return trees
+
+
+def mount_trees() -> bool:
+    if shutil.which("sandfork") is None:
+        return True
+    try:
+        trees = unmounted_trees()
+    except subprocess.CalledProcessError:
+        print("tm: sandfork list failed", file=sys.stderr)
+        return False
+    failed = []
+    for tree in trees:
+        result = subprocess.run(["sandfork", "mount", tree], cwd="/", stdout=subprocess.DEVNULL, check=False)
+        if result.returncode != 0:
+            failed.append(tree)
+    if failed:
+        print(f"tm: could not mount: {' '.join(failed)}", file=sys.stderr)
+        return False
+    return True
+
+
+def start_tmux() -> None:
+    if not mount_trees():
+        try:
+            answer = input("start tmux anyway? [y/N] ")
+        except EOFError:
+            answer = ""
+        if not answer.lower().startswith("y"):
+            sys.exit(1)
+    # resurrect replaces this session with the restored ones.
+    os.execvp("tmux", ["tmux", "new-session"])
+
+
+def pick_session() -> None:
+    sessions = subprocess.run(
+        ["tmux", "list-sessions", "-F", "#{session_name}"], stdout=subprocess.PIPE, text=True, check=True
+    ).stdout
+    picked = subprocess.run(
+        ["fzf", "--header", "attach-to-session"], input=sessions, stdout=subprocess.PIPE, text=True, check=False
+    ).stdout.strip()
+    if not picked:
+        sys.exit(0)
+    os.execvp("tmux", ["tmux", "attach", "-t", f"={picked}"])
+
+
+def main() -> None:
+    if not tmux_running():
+        start_tmux()
+    pick_session()
+
+
+if __name__ == "__main__":
+    main()
