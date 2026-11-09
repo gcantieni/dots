@@ -12,7 +12,7 @@ is in `~/.config/CLAUDE.md`. This file covers only what you can't see from the c
 - **Sending to Claude agents** (`lua/core/claude_send.lua` + `lua/plugins/review.lua`,
   keys under `<leader>c`). Agents are not nvim terminals: they are Claude Code
   sessions in tmux panes, found through the `~/.claude/status/*.json` records that
-  `claude-status-hook` writes. No hooks means "no live Claude agents" (see the
+  `claude-agents hook` writes. No hooks means "no live Claude agents" (see the
   top-level README). Text is bracketed-pasted into the pane without submitting it.
   The chosen pane is remembered per nvim instance in `vim.g.claude_send_pane`.
   Review comments come from review.nvim's quick comments, exported as markdown

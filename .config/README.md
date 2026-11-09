@@ -47,7 +47,7 @@ hooks.
       ▼                                      ▼
    source tree                        tmux session "<name>"  (window(s): nvim, shell, claude)
                                              │
-                              Claude hooks ──┴──▶ ~/.claude/status/*.json ──▶ claude-status popup + status bar
+                              Claude hooks ──┴──▶ ~/.claude/status/*.json ──▶ claude-agents popup + status bar
 ```
 
 ## Scripts (`~/bin`)
@@ -79,23 +79,26 @@ bash-sourceable `.proj` is still read, and `gc-proj migrate` converts it.
 resolved cwd point at the source tree.
 
 ### Claude agent monitoring
-- **`claude-status-hook <state>`** — invoked from Claude Code hooks (see
+- **`claude-agents`** — one script for agent state, overview and notifications.
+- **`claude-agents hook <state>`** — invoked from Claude Code hooks (see
   `~/.claude/settings.json`). Maps hook events → states and writes one JSON record per
-  agent to `~/.claude/status/<session_id>.json`, keyed to its `$TMUX_PANE`. States:
+  pane to `~/.claude/status/pane-<pane_id>.json`. States:
   `idle` (SessionStart), `busy` (UserPromptSubmit / PreToolUse), `done` (Stop),
   `waiting` (Notification — but only a *real* permission/elicitation prompt; a plain
   idle_prompt is downgraded to idle/done), `end` (SessionEnd, removes the record). It
   also pushes a summary into the tmux `@claude_status` option and refreshes clients so
   the status bar updates instantly rather than on the poll timer.
-- **`claude-status`** — reads those records (pruning dead panes). Modes: no arg =
+- **`claude-agents`** with no arg reads those records (pruning dead panes) as an
   interactive `fzf` switcher with a live pane preview (bound to **prefix+a**);
-  `--line` = compact counts for the status bar; `--list` = plain listing. Glyphs:
-  green ● busy, yellow ◆ waiting, blue ✔ done, grey ○ idle. `--line` prefixes the
+  `line` = compact counts for the status bar; `list` = plain listing. Glyphs:
+  green ● busy, yellow ◆ waiting, blue ✔ done, grey ○ idle. `line` prefixes the
   whole group with a cyan `✻` label so it reads as the Claude segment.
   Rows are ordered by state (waiting → busy → done → idle) and then by the record's
   `ts` newest-first, so the agent you touched last sits at the top of its group.
   A grey age column (`34s`, `18h`, `5d`) shows that recency; `ts` is re-stamped on
   every hook event, so it tracks last activity rather than session start.
+  Desktop notifications when an agent finishes or needs input are off until
+  **prefix+N** turns them on.
 
 ### Misc helpers
 - **`tmux-open-error`** — scrape compiler errors from the current pane and open each in
@@ -113,7 +116,8 @@ Prefix is **Ctrl-Space**. Highlights:
 |---|---|
 | `prefix f` / `prefix Space` | sessionizer (new window running `tmux-sessionizer`) |
 | `prefix ,` | fzf popup: jump to another session (with pane preview) |
-| `prefix a` | Claude agent overview popup (`claude-status`) |
+| `prefix a` | Claude agent overview popup (`claude-agents`) |
+| `prefix N` | toggle Claude desktop notifications |
 | `prefix ]` | paste the X clipboard (bracketed) — replaces default paste-buffer |
 | `prefix C-k` | kill current session |
 | `prefix R` | rename window; `prefix E` | move window to the end |
@@ -144,7 +148,7 @@ lazy.nvim setup, kickstart-derived. Leader is **Space**, localleader is **`,`**
   loaded, a site module is just another file in that directory. Custom modules alongside:
   - `claude_send.lua` — send visual selection to a Claude agent in a tmux pane
     (**`<F5>`** / `<leader>as`); discovers agents from the same `~/.claude/status/*.json`
-    records `claude-status` reads.
+    records `claude-agents` reads.
   - `vscode.lua` — hand the buffer to VS Code for a debug session (`<leader>dv`).
     Its root detection takes extra probes from `M.root_probes`.
   - `ai_term_gf.lua` — `gf` in terminal buffers, resolving paths against the term's cwd.
@@ -166,7 +170,7 @@ lazy.nvim setup, kickstart-derived. Leader is **Space**, localleader is **`,`**
 
 ## Claude Code hook wiring (`~/.claude/settings.json`)
 
-Every relevant lifecycle event calls `claude-status-hook`:
+Every relevant lifecycle event calls `claude-agents hook`:
 `SessionStart→idle`, `UserPromptSubmit→busy`, `PreToolUse→busy`, `Stop→done`,
 `Notification→waiting`, `SessionEnd→end`. This is what makes the `prefix a` overview
 and the status-bar agent counts work. `effortLevel` is `high`.

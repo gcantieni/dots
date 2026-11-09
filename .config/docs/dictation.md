@@ -14,7 +14,7 @@ Linux box only: it relies on PulseAudio (`parec`/`pactl`), X11 key injection and
   `claude_send.lua`), `--clip` copies to the clipboard, `--stdout` prints (used
   by the nvim binding), `--xpaste` copies *and* synthesizes Ctrl-V into the
   focused window (the GNOME hotkey below). Pushes `@dictate_status` into the status bar while
-  recording, mirroring `claude-status-hook`. Overridable via `GC_WHISPER_MODEL`,
+  recording, mirroring `claude-agents hook`. Overridable via `GC_WHISPER_MODEL`,
   `GC_WHISPER_THREADS` (default 8 — 16 is only ~5% faster), `GC_DICTATE_SOURCE`
   / `GC_DICTATE_SOURCE_MATCH` (see below), `GC_DICTATE_MAX_SECONDS` (default
   300s, a runaway-recording backstop).
