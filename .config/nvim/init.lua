@@ -144,6 +144,7 @@ require('lazy').setup({
   -- Fetch weekly in the background; the count shows in the statusline (see
   -- mini.lua) instead of a notification on every startup.
   checker = { enabled = true, notify = false, frequency = 7 * 24 * 3600 },
+  rocks = { enabled = false },
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
     -- default lazy.nvim defined Nerd Font icons, otherwise define a unicode icons table
