@@ -2,6 +2,8 @@
 
 Personal defaults for every project. A repo's own `AGENTS.md` takes precedence.
 
+@~/AGENTS.local.md
+
 - Be terse. Match the surrounding code's style; don't add explanatory comments
   unless asked.
 - Run the project's check or test command before calling work done, and report
