@@ -1,6 +1,6 @@
 -- Send text to a running Claude agent living in a tmux pane. Agents are
--- discovered from the same records the `claude-status` script reads
--- (~/.claude/status/*.json, written by ~/bin/claude-status-hook), so this shares
+-- discovered from the same records the `claude-agents` script reads
+-- (~/.claude/status/*.json, written by `claude-agents hook`), so this shares
 -- the tmux-pane-as-agent model of the `prefix+a` overview.
 --
 -- The chosen agent is remembered per nvim instance (vim.g, so it survives
@@ -13,7 +13,7 @@
 local M = {}
 
 local status_dir = vim.fn.expand '~/.claude/status'
-local claude_status = vim.fn.expand '~/bin/claude-status'
+local claude_agents = vim.fn.expand '~/bin/claude-agents'
 
 -- Charwise/linewise/blockwise visual selection as a single string, or nil.
 local function get_visual_selection()
@@ -29,7 +29,7 @@ local function get_visual_selection()
 end
 
 -- Set of pane ids that currently exist, for liveness filtering (mirrors the
--- check in ~/bin/claude-status live_records()).
+-- check in ~/bin/claude-agents live_records()).
 local function live_panes()
   local out = vim.fn.systemlist { 'tmux', 'list-panes', '-a', '-F', '#{pane_id}' }
   local set = {}
@@ -72,7 +72,7 @@ local function list_agents()
   return agents
 end
 
--- Human-readable one-liner for a record, using the claude-status fields.
+-- Human-readable one-liner for a record, using the claude-agents record fields.
 local function describe(rec)
   local label = rec.summary
   if label == nil or label == '' then
@@ -90,7 +90,7 @@ end
 
 -- Paste text into a pane as one bracketed block (so multi-line selections don't
 -- submit early), then switch focus to that pane. Mirrors the jump sequence in
--- ~/bin/claude-status. Returns true on success.
+-- ~/bin/claude-agents. Returns true on success.
 local function send_and_focus(pane, text)
   vim.fn.system({ 'tmux', 'load-buffer', '-b', 'nvim-claude-send', '-' }, text)
   if vim.v.shell_error ~= 0 then
@@ -111,7 +111,7 @@ local function send_and_focus(pane, text)
 end
 
 -- Telescope picker over the agents; reuses the pattern in core.ai_term_gf and
--- previews the pane via `claude-status --preview` (its output-trimming logic).
+-- previews the pane via `claude-agents preview` (its output-trimming logic).
 local function pick_agent(agents, on_pick)
   local pickers = require 'telescope.pickers'
   local finders = require 'telescope.finders'
@@ -133,7 +133,7 @@ local function pick_agent(agents, on_pick)
       sorter = conf.generic_sorter {},
       previewer = previewers.new_termopen_previewer {
         get_command = function(entry)
-          return { claude_status, '--preview', entry.value.pane }
+          return { claude_agents, 'preview', entry.value.pane }
         end,
       },
       attach_mappings = function(prompt_bufnr)

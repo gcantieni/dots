@@ -1,0 +1,520 @@
+#!/usr/bin/env python3
+# Claude agents across tmux panes: state records, status bar, switcher, notifications.
+#
+#   claude-agents                interactive fzf switcher (tmux prefix a popup)
+#   claude-agents hook <state>   record state from a Claude Code hook (payload on stdin)
+#   claude-agents line           compact summary for the tmux status bar
+#   claude-agents list           plain text listing
+#   claude-agents preview <pane> trimmed pane output, for the switcher preview
+#   claude-agents rescan         rebuild records for running agents
+#   claude-agents notify <pane> <state> <label>
+#
+# Records live in ~/.claude/status/pane-<pane_id>.json, one per pane. Records whose
+# pane no longer exists are pruned on read. Hook states: idle | busy | done |
+# waiting | end (end removes the record).
+
+import glob
+import json
+import mmap
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+
+STATUS_DIR = os.path.expanduser('~/.claude/status')
+SELF = os.path.realpath(__file__)
+RANK = {'waiting': 0, 'busy': 1, 'done': 2, 'idle': 3}
+FIELDS = ('session_id', 'pane', 'tmux_session', 'window_index', 'window_name', 'cwd', 'project', 'state', 'summary', 'kind', 'ts')
+ICONS = {
+    'waiting': '\033[33m◆\033[0m',
+    'busy': '\033[32m●\033[0m',
+    'done': '\033[34m✔\033[0m',
+    'idle': '\033[90m○\033[0m',
+}
+UNKNOWN = '\033[90m?\033[0m'
+ANSI = re.compile(r'\033\[[0-9;?]*[A-Za-z]')
+SPINNER = re.compile(r'^[✻✽✶✳✢✺✷✸✹✦·] ')
+
+
+def now():
+    return int(time.time())
+
+
+# --- tmux and processes -------------------------------------------------------
+
+
+def tmux(*args):
+    try:
+        r = subprocess.run(['tmux', *args], capture_output=True, text=True)
+    except FileNotFoundError:
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def query():
+    """One tmux round trip: every pane's coordinates, attached clients, and @claude_notify.
+
+    Returns None when there is no tmux server.
+    """
+    pane_fmt = '\t'.join(
+        (
+            'P',
+            '#{pane_id}',
+            '#{pane_pid}',
+            '#{session_name}',
+            '#{window_index}',
+            '#{window_name}',
+            '#{&&:#{pane_active},#{&&:#{window_active},#{session_attached}}}',
+        )
+    )
+    out = tmux('list-panes', '-a', '-F', pane_fmt, ';', 'list-clients', '-F', 'C\t#{client_name}', ';', 'show-option', '-gqv', '@claude_notify')
+    if out is None:
+        return None
+    panes, clients, notify_opt = {}, [], ''
+    for line in out.splitlines():
+        f = line.split('\t')
+        if f[0] == 'P' and len(f) == 7:
+            panes[f[1]] = {'pid': f[2], 'session': f[3], 'window_index': f[4], 'window_name': f[5], 'visible': f[6] == '1'}
+        elif f[0] == 'C' and len(f) == 2:
+            clients.append(f[1])
+        else:
+            notify_opt = line.strip()
+    return {'panes': panes, 'clients': clients, 'notify': notify_opt}
+
+
+def process_parents():
+    out = subprocess.run(['ps', '-A', '-o', 'pid=,ppid='], capture_output=True, text=True).stdout
+    parents = {}
+    for line in out.split('\n'):
+        f = line.split()
+        if len(f) == 2:
+            parents[f[0]] = f[1]
+    return parents
+
+
+def pane_of_pid(pid, panes, parents=None):
+    """Walk a pid's ancestry to the tmux pane whose shell owns it."""
+    by_pid = {p['pid']: pane for pane, p in panes.items()}
+    parents = parents or process_parents()
+    pid = str(pid)
+    for _ in range(40):
+        if not pid or int(pid) <= 1:
+            break
+        if pid in by_pid:
+            return by_pid[pid]
+        pid = parents.get(pid)
+    return None
+
+
+# --- records and transcripts --------------------------------------------------
+
+
+def record_path(pane):
+    return os.path.join(STATUS_DIR, f'pane-{pane}.json')
+
+
+def read_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def write_record(rec):
+    os.makedirs(STATUS_DIR, exist_ok=True)
+    path = record_path(rec['pane'])
+    tmp = f'{path}.{os.getpid()}.tmp'
+    with open(tmp, 'w') as f:
+        json.dump({k: rec.get(k, '') for k in FIELDS}, f, ensure_ascii=False)
+        f.write('\n')
+    os.replace(tmp, path)
+
+
+def remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def reverse_lines(f, block=65536):
+    pos = f.seek(0, os.SEEK_END)
+    tail = b''
+    while pos > 0:
+        n = min(block, pos)
+        pos -= n
+        f.seek(pos)
+        lines = (f.read(n) + tail).split(b'\n')
+        tail = lines[0]
+        yield from reversed(lines[1:])
+    yield tail
+
+
+def latest_title(transcript):
+    """Latest ai-title from a transcript, read backwards from the end."""
+    try:
+        f = open(transcript, 'rb')
+    except OSError:
+        return ''
+    with f:
+        for line in reverse_lines(f):
+            if b'"type":"ai-title"' in line:
+                try:
+                    title = json.loads(line).get('aiTitle')
+                except ValueError:
+                    continue
+                if title:
+                    return title
+    return ''
+
+
+def is_bg(transcript):
+    try:
+        with open(transcript, 'rb') as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
+            return m.find(b'"sessionKind":"bg"') != -1
+    except (OSError, ValueError):
+        return False
+
+
+def live_records(panes):
+    """Records whose pane still exists, newest per pane, sorted by state then recency. Dead panes' records are deleted."""
+    if not panes:
+        return []
+    try:
+        names = os.listdir(STATUS_DIR)
+    except OSError:
+        return []
+    best = {}
+    for name in names:
+        if not name.endswith('.json'):
+            continue
+        path = os.path.join(STATUS_DIR, name)
+        rec = read_json(path)
+        pane = (rec or {}).get('pane')
+        if not pane or pane not in panes:
+            remove(path)
+            continue
+        if pane not in best or float(rec.get('ts') or 0) >= float(best[pane].get('ts') or 0):
+            best[pane] = rec
+    return sorted(best.values(), key=lambda r: (RANK.get(r.get('state'), 4), -float(r.get('ts') or 0)))
+
+
+def records():
+    info = query()
+    return (live_records(info['panes']) if info else []), info
+
+
+# --- status bar and notifications ---------------------------------------------
+
+
+def status_line(recs):
+    counts = {}
+    for r in recs:
+        counts[r.get('state')] = counts.get(r.get('state'), 0) + 1
+    out = ''
+    for state, color, glyph in (('busy', 'green', '●'), ('waiting', 'yellow', '◆'), ('done', 'blue', '✔')):
+        if counts.get(state):
+            out += f'#[fg={color}]{glyph} {counts[state]}'
+    return f'#[fg=cyan]✻ #[default]{out}#[default] ' if out else ''
+
+
+def refresh_status(info):
+    """Push the summary into @claude_status and redraw every client.
+
+    Push, not pull: a status-right #() job only reruns on status-interval, and refresh-client redraws its
+    cached output. status-right expands #{E:@claude_status} on every redraw instead.
+    """
+    args = ['set-option', '-gq', '@claude_status', status_line(live_records(info['panes']))]
+    for c in info['clients']:
+        args += [';', 'refresh-client', '-S', '-t', c]
+    tmux(*args)
+
+
+def notify(pane, state, label, info):
+    """Desktop notification for an agent that needs you. No-op unless @claude_notify is on (prefix N).
+
+    Skipped when the pane is already in view with Ghostty frontmost. Clicking it jumps to the pane.
+    """
+    if info['notify'] != 'on':
+        return
+    p = info['panes'].get(pane)
+    if p and p['visible']:
+        front = subprocess.run(
+            ['osascript', '-e', 'tell application "System Events" to get bundle identifier of first process whose frontmost is true'],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if front == 'com.mitchellh.ghostty':
+            return
+    title = 'Claude needs input' if state == 'waiting' else 'Claude finished'
+    t = shlex.quote(shutil.which('tmux') or 'tmux')
+    q = shlex.quote(pane)
+    jump = f'{t} switch-client -t {q}; {t} select-window -t {q}; {t} select-pane -t {q}; open -b com.mitchellh.ghostty'
+    # Homebrew's 3.x, not the rbenv gem shim (2.0.0) that shadows it on PATH: the gem uses the deprecated
+    # notification API and shows nothing on macOS 26.
+    notifier = '/opt/homebrew/bin/terminal-notifier'
+    if os.access(notifier, os.X_OK):
+        cmd = [notifier, '-title', title, '-message', label, '-group', f'claude-{pane}', '-sound', 'default', '-execute', jump]
+    else:
+        msg = label.replace('"', '')
+        cmd = ['osascript', '-e', f'display notification "{msg}" with title "{title}" sound name "default"']
+    # Claude kills a hook's background children when it exits, so hand the send to the tmux server.
+    # run-shell expands #{...} formats, hence the ## escape.
+    tmux('run-shell', '-b', shlex.join(cmd).replace('#', '##') + ' >/dev/null 2>&1')
+
+
+# --- hook -----------------------------------------------------------------------
+
+
+def hook(state):
+    """Record one agent's state. Foreground agents expose $TMUX_PANE; background/"auto" daemon agents run
+    paneless, so their pane is recovered from the process ancestry."""
+    try:
+        payload = json.load(sys.stdin)
+    except ValueError:
+        return
+    session_id = payload.get('session_id')
+    if not session_id:
+        return
+    transcript = payload.get('transcript_path') or ''
+
+    info = query()
+    if info is None:
+        return
+    pane = os.environ.get('TMUX_PANE') or pane_of_pid(os.getppid(), info['panes'])
+    if not pane:
+        return
+
+    # One record per pane: collapses a chat's interactive + bg-daemon session twins into one row.
+    path = record_path(pane)
+    remove(os.path.join(STATUS_DIR, f'{session_id}.json'))
+    prev = read_json(path) or {}
+
+    def bg():
+        if prev.get('session_id') == session_id and 'kind' in prev:
+            return prev['kind'] == 'bg'
+        return is_bg(transcript)
+
+    if state == 'end':
+        # A bg/auto daemon session ending is not the end of the pane's chat: the interactive twin still owns it.
+        if not bg():
+            remove(path)
+        refresh_status(info)
+        return
+
+    # Notification fires both for real needs-attention prompts and for the plain idle prompt
+    # ("Claude is waiting for your input", ~30-60s after a turn). Only the former is "waiting".
+    if state == 'waiting':
+        ntype = payload.get('notification_type') or payload.get('trigger') or ''
+        message = payload.get('message') or ''
+        if ntype == 'idle_prompt' or (not ntype and 'waiting for your input' in message):
+            state = 'done' if prev.get('state') == 'done' else 'idle'
+
+    p = info['panes'].get(pane)
+    if p is None:
+        remove(path)
+        return
+
+    cwd = payload.get('cwd') or os.getcwd()
+    summary = latest_title(transcript) or prev.get('summary') or ''
+    kind = 'bg' if bg() else ''
+    proj = os.environ.get('PROJ')
+    project = os.path.basename(proj) if proj else os.path.basename(cwd)
+
+    # Cross-twin no-clobber guard: a passive idle from one twin must not clobber a fresh active turn the
+    # other is running. A stale busy (dead daemon) ages out after 180s.
+    prev_state = prev.get('state', '')
+    if (
+        prev
+        and prev.get('session_id') != session_id
+        and prev_state in ('busy', 'waiting')
+        and state == 'idle'
+        and now() - int(prev.get('ts') or 0) < 180
+    ):
+        return
+
+    if state in ('done', 'waiting') and state != prev_state:
+        label = f'{project}{" — " + summary if summary else ""} ({p["session"]}:{p["window_index"]})'
+        notify(pane, state, label, info)
+
+    write_record(
+        {
+            'session_id': session_id,
+            'pane': pane,
+            'tmux_session': p['session'],
+            'window_index': p['window_index'],
+            'window_name': p['window_name'],
+            'cwd': cwd,
+            'project': project,
+            'state': state,
+            'summary': summary,
+            'kind': kind,
+            'ts': now(),
+        }
+    )
+    refresh_status(info)
+
+
+# --- overview -------------------------------------------------------------------
+
+
+def fmt_age(ts, t):
+    if not ts or int(ts) <= 0:
+        return '  -'
+    d = max(0, t - int(ts))
+    if d < 60:
+        return f'{d:3d}s'
+    if d < 3600:
+        return f'{d // 60:3d}m'
+    if d < 86400:
+        return f'{d // 3600:3d}h'
+    return f'{d // 86400:3d}d'
+
+
+def rows(recs):
+    t = now()
+    for r in recs:
+        summary = r.get('summary') or ''
+        if len(summary) > 40:
+            summary = summary[:37] + '...'
+        bg = '\033[90mbg\033[0m' if r.get('kind') == 'bg' else '  '
+        loc = f'{r.get("tmux_session", "")}:{r.get("window_index", "")}'
+        yield r['pane'], (
+            f'{ICONS.get(r.get("state"), UNKNOWN)}  {r.get("state", ""):<7}  {bg}  {summary:<40}  '
+            f'{loc:<20}  {r.get("project", ""):<18} \033[90m{fmt_age(r.get("ts"), t)}\033[0m'
+        )
+
+
+def preview(pane):
+    """Last real output of a pane, without Claude Code's trailing input box, footer and spinner line."""
+    avail = int(os.environ.get('FZF_PREVIEW_LINES') or 40)
+    h = avail * 3 // 4 or avail
+    orig = (tmux('capture-pane', '-ept', pane) or '').split('\n')
+    if orig and orig[-1] == '':
+        orig.pop()
+    plain = [ANSI.sub('', s) for s in orig]
+    n = len(orig)
+    rules = [i for i, s in enumerate(plain) if s.count('─') >= 20]
+    last = rules[-1] if rules else -1
+    prev = rules[-2] if len(rules) > 1 else -1
+    # The input box is bracketed by two rules at the bottom; require it near the end.
+    end = prev if last >= n - 4 and prev >= 0 else n
+    while end > 0 and (not plain[end - 1].strip() or SPINNER.match(plain[end - 1])):
+        end -= 1
+    sys.stdout.write(''.join(s + '\n' for s in orig[max(0, end - h) : end]))
+
+
+def rescan():
+    """Rebuild records for every live pane running a Claude agent, e.g. after the tmux server restarted.
+
+    Existing records are left intact. State defaults to idle and the summary comes from the newest
+    transcript only when a pane's cwd is unambiguous; both self-correct on the pane's next hook.
+    """
+    info = query()
+    if info is None:
+        return
+    pids = subprocess.run(['pgrep', '-x', 'claude'], capture_output=True, text=True).stdout.split()
+    parents = process_parents()
+    pane_cwd = {}
+    for pid in pids:
+        pane = pane_of_pid(pid, info['panes'], parents)
+        if not pane or pane in pane_cwd:
+            continue
+        out = subprocess.run(['lsof', '-a', '-p', pid, '-d', 'cwd', '-Fn'], capture_output=True, text=True).stdout
+        pane_cwd[pane] = next((l[1:] for l in out.splitlines() if l.startswith('n')), '')
+    counts = {}
+    for cwd in pane_cwd.values():
+        counts[cwd] = counts.get(cwd, 0) + 1
+    for pane, cwd in pane_cwd.items():
+        p = info['panes'].get(pane)
+        if p is None or os.path.exists(record_path(pane)):
+            continue
+        sid = summary = kind = ''
+        if cwd and counts[cwd] == 1:
+            enc = re.sub(r'[/.]', '-', cwd)
+            files = glob.glob(os.path.expanduser(f'~/.claude/projects/{glob.escape(enc)}/*.jsonl'))
+            if files:
+                tf = max(files, key=os.path.getmtime)
+                sid = os.path.basename(tf)[: -len('.jsonl')]
+                summary = latest_title(tf)
+                kind = 'bg' if is_bg(tf) else ''
+        write_record(
+            {
+                'session_id': sid,
+                'pane': pane,
+                'tmux_session': p['session'],
+                'window_index': p['window_index'],
+                'window_name': p['window_name'],
+                'cwd': cwd,
+                'project': os.path.basename(cwd or os.getcwd()),
+                'state': 'idle',
+                'summary': summary,
+                'kind': kind,
+                'ts': now(),
+            }
+        )
+    refresh_status(info)
+    for _, line in rows(live_records(info['panes'])):
+        print(line)
+
+
+def switcher():
+    recs, _ = records()
+    lines = [f'{pane}\t{line}' for pane, line in rows(recs)]
+    if not lines:
+        print('No Claude agents are running.')
+        time.sleep(1.2)
+        return
+    r = subprocess.run(
+        [
+            'fzf',
+            '--ansi',
+            '--reverse',
+            '--delimiter=\t',
+            '--with-nth=2..',
+            '--nth=2..',
+            '--header=switch to claude agent',
+            f'--preview={SELF} preview {{1}}',
+            '--preview-window=down,60%,wrap',
+        ],
+        input='\n'.join(lines) + '\n',
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    sel = r.stdout.strip()
+    if not sel:
+        return
+    pane = sel.split('\t', 1)[0]
+    for cmd in ('switch-client', 'select-window', 'select-pane'):
+        tmux(cmd, '-t', pane)
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else ''
+    if cmd == 'hook':
+        hook(args[1] if len(args) > 1 else 'idle')
+    elif cmd == 'line':
+        sys.stdout.write(status_line(records()[0]))
+    elif cmd == 'list':
+        for _, line in rows(records()[0]):
+            print(line)
+    elif cmd == 'preview' and len(args) == 2:
+        preview(args[1])
+    elif cmd == 'rescan':
+        rescan()
+    elif cmd == 'notify' and len(args) == 4:
+        info = query()
+        if info is not None:
+            notify(args[1], args[2], args[3], info)
+    elif not cmd:
+        switcher()
+    else:
+        sys.exit('usage:claude-agents [hook <state> | line | list | preview <pane> | rescan | notify <pane> <state> <label>]')
+
+
+main()
