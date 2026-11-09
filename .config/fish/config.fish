@@ -8,6 +8,7 @@ if status is-interactive
   fish_add_path /opt/homebrew/bin
   fish_add_path /opt/homebrew/opt/ruby/bin
   fish_add_path /opt/homebrew/lib/ruby/gems/3.4.0/bin
+  fish_add_path /opt/homebrew/opt/node@24/bin
 
   # Disable greeting message
   set -g fish_greeting
