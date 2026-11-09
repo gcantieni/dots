@@ -1,0 +1,22 @@
+#!/bin/bash
+# tmux-resurrect post-save-layout hook. $1 is the save file.
+# Prints nothing, since tmux shows a hook's output over the pane.
+
+status=0
+if [[ -x ~/bin/vacate ]]; then
+    ~/bin/vacate snapshot "$1"
+    status=$?
+fi
+
+# resurrect doesn't save session environments, so keep each session's PROJ
+# beside the saves for .bashrc to read back after a restore.
+map="$(dirname "$1")/proj-env"
+tmp=$(mktemp "$map.XXXXXX") || exit "$status"
+tmux list-sessions -F '#{session_name}' 2>/dev/null | while IFS= read -r s; do
+    line=$(tmux show-environment -t "=$s" PROJ 2>/dev/null)
+    if [[ $line == PROJ=?* ]]; then
+        printf '%s\t%s\n' "$s" "${line#PROJ=}"
+    fi
+done >"$tmp"
+mv -f "$tmp" "$map"
+exit "$status"
