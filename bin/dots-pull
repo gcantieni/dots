@@ -1,0 +1,16 @@
+#!/bin/sh
+# Fast-forward the dotfile repos in the background, each at most every 4 hours.
+# Output goes to $GIT_DIR/pull.log.
+for git_dir in "$HOME/.dots" "$HOME/.dots-work"; do
+    if [ ! -d "$git_dir" ]; then
+        continue
+    fi
+    stamp="$git_dir/last-pull"
+    if [ -n "$(find "$stamp" -mmin -240 2>/dev/null)" ]; then
+        continue
+    fi
+    touch "$stamp"
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
+        nohup git --git-dir="$git_dir" --work-tree="$HOME" pull --ff-only --quiet \
+        </dev/null >"$git_dir/pull.log" 2>&1 &
+done

@@ -121,6 +121,9 @@ alias rmtmp="find /tmp -mindepth 1 -delete" # don't rm -rf
 
 alias dots='/usr/bin/git --git-dir "$HOME/.dots/" --work-tree "$HOME"'
 alias dotsw='/usr/bin/git --git-dir "$HOME/.dots-work/" --work-tree "$HOME"'
+case $- in
+    *i*) "$HOME/bin/dots-pull" ;;
+esac
 
 # A pane restored by tmux-resurrect starts without its session's PROJ.
 # ~/bin/tmux-resurrect-save keeps the last known PROJ of each session.
