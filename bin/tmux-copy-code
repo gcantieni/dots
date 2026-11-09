@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -187,6 +188,27 @@ def copy(text: str) -> None:
         subprocess.run(["xclip", "-selection", "clipboard", "-in"], input=text.encode(), check=True)
 
 
+def notify(msg: str) -> None:
+    subprocess.run(["tmux", "display-message", "-d", "3000", msg])
+
+
+def window_panes(pane: str) -> list[str]:
+    """The pane first, then the other panes in its window."""
+    out = subprocess.run(
+        ["tmux", "list-panes", "-t", pane, "-F", "#{pane_id}"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    return [pane] + [p for p in out if p != pane]
+
+
+def capture(pane: str, history: int, color: str) -> list[Cells]:
+    text = subprocess.run(
+        ["tmux", "capture-pane", "-p", "-e", "-J", "-t", pane, "-S", f"-{history}"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return [parse_line(line, color) for line in text.splitlines()]
+
+
 def pick(items: list[Item]) -> Item | None:
     with tempfile.TemporaryDirectory() as tmp:
         rows = []
@@ -205,6 +227,8 @@ def pick(items: list[Item]) -> Item | None:
             ],
             input="\n".join(rows), stdout=subprocess.PIPE, text=True,
         )
+    if res.returncode not in (0, 1, 130):
+        notify(f"fzf failed with exit code {res.returncode}")
     if res.returncode != 0 or not res.stdout.strip():
         return None
     line = res.stdout.splitlines()[0]
@@ -216,45 +240,57 @@ def pick(items: list[Item]) -> Item | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("pane", nargs="?", default=os.environ.get("TMUX_PANE"), help="tmux pane id")
+    ap.add_argument("pane", nargs="?", help="tmux pane id (default: the active pane)")
     ap.add_argument("--history", type=int, default=300, help="scrollback lines to include")
     ap.add_argument("--color", default="38;5;153", help="SGR foreground of inline code")
+    ap.add_argument("--only", action="store_true", help="skip the other panes in the window")
     ap.add_argument("--list", action="store_true", help="print items instead of picking")
     args = ap.parse_args()
     if not args.pane:
-        ap.error("no pane given and $TMUX_PANE unset")
-
-    capture = subprocess.run(
-        ["tmux", "capture-pane", "-p", "-e", "-J", "-t", args.pane, "-S", f"-{args.history}"],
-        capture_output=True, text=True, check=True,
-    ).stdout
-    lines = [parse_line(line, args.color) for line in capture.splitlines()]
+        args.pane = subprocess.run(
+            ["tmux", "display-message", "-p", "#{pane_id}"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
 
     seen: set[str] = set()
     items: list[Item] = []
-    for item in reversed(quotes(lines) + spans(lines)):
-        t = item.text
-        if len(t) >= 2 and any(c.isalnum() for c in t) and t not in seen:
-            seen.add(t)
-            items.append(item)
-    items.sort(key=lambda it: it.kind != "quote")
+    for pane in [args.pane] if args.only else window_panes(args.pane):
+        lines = capture(pane, args.history, args.color)
+        found = [
+            it for it in reversed(quotes(lines) + spans(lines))
+            if len(it.text) >= 2 and any(c.isalnum() for c in it.text) and it.text not in seen
+        ]
+        found.sort(key=lambda it: it.kind != "quote")
+        for it in found:
+            if it.text not in seen:
+                seen.add(it.text)
+                items.append(it)
 
     if args.list:
         for item in items:
             print(f"--- {item.kind}\n{item.text}")
         return 0
     if not items:
-        subprocess.run(["tmux", "display-message", "No quote or inline code in pane"])
+        msg = "No Claude quote or inline code is visible in this window."
+        if sys.stdin.isatty():
+            input(f"{msg}\nPress Enter to close.")
+        else:
+            notify(msg)
         return 1
 
     chosen = pick(items)
     if chosen is None:
         return 0
     copy(chosen.text)
-    first = chosen.text.splitlines()[0]
-    subprocess.run(["tmux", "display-message", f"Copied: {first}"])
+    notify(f"Copied: {chosen.text.splitlines()[0]}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:
+        traceback.print_exc()
+        if sys.stdin.isatty():
+            input("Press Enter to close")
+        sys.exit(1)
