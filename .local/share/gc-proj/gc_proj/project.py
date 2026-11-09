@@ -11,6 +11,21 @@ from .ui import Fail
 
 # Board keys that a state can't take.
 RESERVED_KEYS = set("hjkluoARnbx*gq")
+KEYS = {
+    "dir": "the source tree to work in",
+    "branch": "worktree branch; overrides dir with the worktree holding it",
+    "subdir": "dir within the branch's worktree, if not worktrees.subdir",
+    "tree": "tree made by new --tree; done offers to drop it",
+    "tree_repo": "the area's repo the tree was made in, when the trees commands use {repo}",
+    "state": "one of the states setting (default active, review, checkin, done)",
+    "kind": '"area" for a long-lived area of responsibility: it gets a panel on the board '
+            "and done and prune leave it alone",
+    "area": "the area the project belongs to",
+    "jira": "Jira key, if the name doesn't start with one (cs12345-...)",
+    "review": "review request, if it can't be found by cl or the Jira key",
+    "mr": "merge request url, if it can't be found by branch or the Jira key",
+    "build, test, ...": "shell commands for run",
+}
 PRUNED_DIRS = {".git", "target", "node_modules"}
 
 

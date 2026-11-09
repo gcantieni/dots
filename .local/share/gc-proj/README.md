@@ -6,8 +6,10 @@ tracks its state through review and check-in. Areas are long-lived projects that
 group others. `gc-proj board` shows everything by state and lets you jump, rename,
 re-file and finish projects.
 
-Python 3.9+, standard library only. `gc-proj` here is the launcher, and
-`~/bin/gc-proj` links to it. `gc-proj help` lists the commands.
+Python 3.9+, standard library only. The source is in `~/repos/gc-proj`, a link
+to `~/.local/share/gc-proj`, so edits there take effect immediately. `gc-proj`
+there is the launcher, and `~/bin/gc-proj` links to it. `gc-proj help` lists the
+commands.
 
 ## Project file
 
@@ -21,6 +23,8 @@ Python 3.9+, standard library only. `gc-proj` here is the launcher, and
   "build": "cd \"$dir\" && make"
 }
 ```
+
+`gc-proj keys` describes every key, including the ones plugins add.
 
 Scripts should ask gc-proj instead of reading it: `gc-proj dir [project]` prints
 the working dir (resolving `branch=`), `gc-proj get <key> [-p project]` prints a

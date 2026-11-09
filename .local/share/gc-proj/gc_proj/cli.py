@@ -32,6 +32,7 @@ projects
   dir [project]        print the project's working dir, resolving branch= to its worktree
   get [key] [-p project]  print a key of the project, or all of them as JSON
   set key=value ...    set keys of the current project; key= removes one
+  keys                 describe the keys a project can have (so does set with no args)
   state [state]        print or set the state (the states setting; by default active, review,
                        checkin or done)
   rename [project] <new-name>
@@ -54,22 +55,11 @@ branches (worktrees.repo)
 integrations
   jira-new <summary>   create a Jira issue assigned to you and print its key
   config               print the settings and where each comes from
-
-project keys
-  dir      the source tree to work in
-  branch   worktree branch; overrides dir with the worktree holding it (subdir= within it)
-  tree     tree made by new --tree; done offers to drop it
-  tree_repo  the area's repo the tree was made in, when the trees commands use {repo}
-  state    one of the states setting (default active, review, checkin, done)
-  kind     "area" for a long-lived area of responsibility: it gets a panel on the board
-           and done and prune leave it alone
-  area     the area the project belongs to
-  jira     Jira key, if the name doesn't start with one (cs12345-...)
-  review   review request, if it can't be found by cl or the Jira key
-  mr       merge request url, if it can't be found by branch or the Jira key
-  build, test, ...  shell commands for run
-  Plugins (~/.config/gc-proj/plugins/*.py) may use more keys.
 """
+
+
+def usage() -> str:
+    return USAGE + "\n" + commands.keys_help()
 
 
 def parser_for(name: str) -> argparse.ArgumentParser:
@@ -123,6 +113,7 @@ COMMANDS = {
     "dir": commands.cmd_dir,
     "get": commands.cmd_get,
     "set": commands.cmd_set,
+    "keys": commands.cmd_keys,
     "state": commands.cmd_state,
     "rename": commands.cmd_rename,
     "run": commands.cmd_run,
@@ -143,12 +134,12 @@ COMMANDS = {
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if not argv or argv[0] in ("-h", "--help", "help"):
-        sys.stdout.write(USAGE)
+        sys.stdout.write(usage())
         return 0
     name, rest = argv[0], argv[1:]
     if name not in COMMANDS:
         print(f"error: unknown command '{name}'", file=sys.stderr)
-        sys.stderr.write(USAGE)
+        sys.stderr.write(usage())
         return 1
     args = parser_for(name).parse_args(rest)
     if name in ("build", "test"):

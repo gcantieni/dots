@@ -4,10 +4,13 @@ import glob
 import json
 import os
 import subprocess
+import sys
+import textwrap
+from pathlib import Path
 
-from . import config, projfile, trees, services, tmux, ui, worktrees
-from .project import (Project, all_projects, area_dir, check_area, check_name, check_state, default_state,
-                      current_area, jira_key_from_name, open_project, require_current,
+from . import config, plugins, projfile, trees, services, tmux, ui, worktrees
+from .project import (KEYS, Project, all_projects, area_dir, check_area, check_name, check_state,
+                      current_area, default_state, jira_key_from_name, open_project, require_current,
                       require_env, resolve, set_keys)
 from .ui import Cancelled, Fail
 from .util import call, out
@@ -255,7 +258,29 @@ def cmd_state(cfg, a):
     p.update({"state": a.state})
 
 
+def keys_help() -> str:
+    """The keys a project can have: the core's, then each plugin's."""
+    sections = [("project keys", KEYS)]
+    for m in plugins.with_hook("KEYS"):
+        sections.append((f"{Path(m.__file__).stem} plugin keys", m.KEYS))
+    lines = []
+    for title, keys in sections:
+        lines += ["", title]
+        for key, desc in keys.items():
+            lead = f"  {key:<7}  " if len(key) <= 7 else f"  {key}  "
+            lines += textwrap.wrap(desc, 96, initial_indent=lead, subsequent_indent=" " * 11)
+    lines += ["", "Plugins (~/.config/gc-proj/plugins/*.py) add keys in a KEYS dict."]
+    return "\n".join(lines[1:]) + "\n"
+
+
+def cmd_keys(cfg, a):
+    sys.stdout.write(keys_help())
+
+
 def cmd_set(cfg, a):
+    if not a.pairs:
+        sys.stdout.write(keys_help())
+        return
     set_keys(cfg, require_current(cfg), a.pairs)
 
 

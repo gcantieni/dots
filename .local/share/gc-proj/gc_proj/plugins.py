@@ -16,6 +16,9 @@
       Why activate shouldn't rebase branch onto the main branch.
   prune_details(cfg, project) -> lines
       Extra lines for the project's card in prune.
+
+A plugin that reads project keys of its own lists them in KEYS, a dict of key to
+description, for gc-proj keys and help.
 """
 from __future__ import annotations
 
