@@ -12,6 +12,11 @@
 
 local M = {}
 
+-- Launched for a specific agent (tmux prefix+g review popup sets $CLAUDE_PANE).
+if vim.g.claude_send_pane == nil and vim.env.CLAUDE_PANE then
+  vim.g.claude_send_pane = vim.env.CLAUDE_PANE
+end
+
 local status_dir = vim.fn.expand '~/.claude/status'
 local claude_agents = vim.fn.expand '~/bin/claude-agents'
 

@@ -35,10 +35,13 @@ return {
     cmd = { 'DiffviewOpen', 'DiffviewClose', 'DiffviewFileHistory', 'DiffviewToggleFiles' },
     opts = function()
       local close = { 'n', 'q', '<cmd>DiffviewClose<CR>', { desc = 'Close diffview' } }
+      -- Quick review comments for Claude (review.nvim; <leader>cs sends them).
+      local comment = { 'n', 'c', '<cmd>Review qc<CR>', { desc = 'Comment for Claude' } }
+      local comment_range = { 'x', 'c', ':Review qc<CR>', { desc = 'Comment range for Claude' } }
       return {
         enhanced_diff_hl = true,
         keymaps = {
-          view = { close },
+          view = { close, comment, comment_range },
           file_panel = { close },
           file_history_panel = { close },
         },

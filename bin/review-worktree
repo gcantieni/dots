@@ -1,0 +1,12 @@
+#!/bin/sh
+# Diffview of this worktree's uncommitted changes (index vs working tree, so staging works).
+# Whole-branch overview: <leader>gr with main.
+# Run from a tmux popup: the active pane is the Claude pane underneath, which comments are sent to
+# (read by nvim core/claude_send.lua).
+case "$PWD/" in
+"$HOME/.config/"*)
+  git rev-parse --git-dir >/dev/null 2>&1 || export GIT_DIR="$HOME/.dots" GIT_WORK_TREE="$HOME"
+  ;;
+esac
+CLAUDE_PANE=$(tmux display -p '#{pane_id}' 2>/dev/null) && export CLAUDE_PANE
+exec nvim -c DiffviewOpen -c "luafile $HOME/bin/review-worktree.lua"
