@@ -1,4 +1,13 @@
-# AnkiConnect operating reference
+# Anki reference
+
+## Conventions
+
+- **Note type, per fact:** Basic for a question→answer fact. Cloze when the fact lives naturally in a sentence or term. Basic (and reversed card) only when both directions are genuinely useful.
+- **Deck:** pick the best-fitting existing deck. Do not create decks unless the user asks. If nothing fits, say so and propose the closest or ask.
+- **Tags:** exactly one tag, `claude`. No topic tags.
+- **No source field content.** Leave Extra/Source fields empty unless they carry part of the card (e.g. cloze `Back Extra` context the user wants).
+- **Setup:** run `version`, then fetch `deckNames` and `modelNames`, plus `modelFieldNames` for any note type you'll use.
+- **Add and verify:** call `addNotes` with the approved cards, check each result for `None`/errors, and re-read with `notesInfo`. Do not trigger sync.
 
 ## Contents
 
