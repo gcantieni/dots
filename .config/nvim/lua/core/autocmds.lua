@@ -38,6 +38,10 @@ vim.api.nvim_create_autocmd('FileType', {
   pattern = { 'markdown', 'text', 'gitcommit' },
   group = aug,
   callback = function(args)
+    -- Scratch buffers such as review comment popups soft-wrap at the window edge instead.
+    if vim.bo[args.buf].buftype ~= '' then
+      return
+    end
     local width = args.match == 'gitcommit' and 72 or 80
     -- Local scope explicitly: plain vim.bo/vim.wo assignment would also move
     -- the global default, so every later buffer and window would inherit the
