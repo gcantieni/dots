@@ -1,5 +1,8 @@
 #!/bin/sh
 # Push in the background after every commit; output goes to $GIT_DIR/push.log.
+# Ignore HUP before forking: a pty caller such as fugitive's :Git commit hangs up
+# git's process group as soon as the commit exits, before nohup could ignore it.
 git_dir=$(git rev-parse --absolute-git-dir)
+trap '' HUP
 GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes' \
-  nohup git push --quiet >"$git_dir/push.log" 2>&1 &
+  git push --quiet >"$git_dir/push.log" 2>&1 </dev/null &
