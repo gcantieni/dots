@@ -65,6 +65,11 @@ def panes() -> list[tuple[str, str, str, str]]:
     return result
 
 
+def pane_pid(pane: str) -> int:
+    pid = out(["tmux", "display-message", "-p", "-t", pane, "#{pane_pid}"])
+    return int(pid) if pid.isdigit() else 0
+
+
 def set_session_dir(path: str, session: str = "") -> None:
     """Make path the default dir for new windows in session (default the current one)."""
     if not inside():

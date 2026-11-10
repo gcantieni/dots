@@ -12,6 +12,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 
 from . import tmux, ui
 from .util import call, ok, out
@@ -76,6 +77,28 @@ def _within(p: str, root: str) -> bool:
     return p == root or p.startswith(root + "/")
 
 
+def _sessions_running(sids: set[int]) -> bool:
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat") as f:
+                fields = f.read().rpartition(")")[2].split()
+        except OSError:
+            continue
+        if fields[0] != "Z" and int(fields[3]) in sids:
+            return True
+    return False
+
+
+def _wait_for_sessions(sids: set[int], timeout: float = 5.0) -> None:
+    """Wait for every process in the sessions led by sids to exit, since
+    tmux kill-pane only hangs them up."""
+    deadline = time.monotonic() + timeout
+    while _sessions_running(sids) and time.monotonic() < deadline:
+        time.sleep(0.1)
+
+
 def cleanup(cfg, name: str, repo: str = "") -> bool:
     """Offer to drop tree name, first closing the tmux panes working in it,
     which would keep it busy."""
@@ -106,8 +129,10 @@ def cleanup(cfg, name: str, repo: str = "") -> bool:
         if not ui.confirm("close them?", True):
             print(f"not dropping {name} while panes use it")
             return False
+        sids = {tmux.pane_pid(pid) for pid, _, _ in busy} - {0}
         for pid, _, _ in busy:
             call(["tmux", "kill-pane", "-t", pid])
+        _wait_for_sessions(sids)
 
     return call(_command(cfg.text("trees.drop"), name, repo=repo)) == 0
 
