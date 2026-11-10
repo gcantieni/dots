@@ -8,6 +8,7 @@
 #   claude-agents preview <pane> trimmed pane output, for the switcher preview
 #   claude-agents rescan         rebuild records for running agents
 #   claude-agents notify <pane> <state> <label>
+#   claude-agents raise          focus Ghostty, its most recently used window if several (X11)
 #
 # Records live in ~/.claude/status/pane-<pane_id>.json, one per pane. Records whose
 # pane no longer exists are pruned on read. Hook states: idle | busy | done |
@@ -234,6 +235,84 @@ def refresh_status(info):
     tmux(*args)
 
 
+def ghostty_frontmost():
+    if sys.platform == 'darwin':
+        front = subprocess.run(
+            ['osascript', '-e', 'tell application "System Events" to get bundle identifier of first process whose frontmost is true'],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        return front == 'com.mitchellh.ghostty'
+    try:
+        win = subprocess.run(['xprop', '-root', '_NET_ACTIVE_WINDOW'], capture_output=True, text=True).stdout.split()[-1]
+        cls = subprocess.run(['xprop', '-id', win, 'WM_CLASS'], capture_output=True, text=True).stdout
+    except (OSError, IndexError):
+        return False
+    return 'ghostty' in cls.lower()
+
+
+def raise_ghostty():
+    """Activate the most recently used Ghostty window the way a pager would, which the window manager honors."""
+    import ctypes
+
+    out = subprocess.run(['xprop', '-root', '_NET_CLIENT_LIST_STACKING'], capture_output=True, text=True).stdout
+    for win in reversed(re.findall(r'0x[0-9a-f]+', out)):
+        cls = subprocess.run(['xprop', '-id', win, 'WM_CLASS'], capture_output=True, text=True).stdout
+        if 'ghostty' in cls.lower():
+            break
+    else:
+        return
+
+    class XClientMessageEvent(ctypes.Structure):
+        _fields_ = [
+            ('type', ctypes.c_int),
+            ('serial', ctypes.c_ulong),
+            ('send_event', ctypes.c_int),
+            ('display', ctypes.c_void_p),
+            ('window', ctypes.c_ulong),
+            ('message_type', ctypes.c_ulong),
+            ('format', ctypes.c_int),
+            ('data', ctypes.c_long * 5),
+        ]
+
+    class XEvent(ctypes.Union):
+        _fields_ = [('xclient', XClientMessageEvent), ('pad', ctypes.c_long * 24)]
+
+    x = ctypes.cdll.LoadLibrary('libX11.so.6')
+    x.XOpenDisplay.restype = ctypes.c_void_p
+    x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x.XDefaultRootWindow.restype = ctypes.c_ulong
+    x.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x.XInternAtom.restype = ctypes.c_ulong
+    x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.POINTER(XEvent)]
+    x.XFlush.argtypes = [ctypes.c_void_p]
+    x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+
+    dpy = x.XOpenDisplay(None)
+    if not dpy:
+        return
+    root = x.XDefaultRootWindow(dpy)
+    ev = XEvent()
+    ev.xclient.type = 33  # ClientMessage
+    ev.xclient.send_event = 1
+    ev.xclient.window = int(win, 16)
+    ev.xclient.message_type = x.XInternAtom(dpy, b'_NET_ACTIVE_WINDOW', 0)
+    ev.xclient.format = 32
+    ev.xclient.data[0] = 2  # source indication: pager
+    substructure_redirect_and_notify = (1 << 20) | (1 << 19)
+    # Closing the notification can hand focus back to the previous window after we ask, so retry until it sticks.
+    for _ in range(10):
+        time.sleep(0.15)
+        x.XSendEvent(dpy, root, 0, substructure_redirect_and_notify, ctypes.byref(ev))
+        x.XFlush(dpy)
+        time.sleep(0.15)
+        active = subprocess.run(['xprop', '-root', '_NET_ACTIVE_WINDOW'], capture_output=True, text=True).stdout
+        if active.split() and int(active.split()[-1], 16) == int(win, 16):
+            break
+    x.XCloseDisplay(dpy)
+
+
 def notify(pane, state, label, info):
     """Desktop notification for an agent that needs you. No-op unless @claude_notify is on (prefix N).
 
@@ -242,29 +321,34 @@ def notify(pane, state, label, info):
     if info['notify'] != 'on':
         return
     p = info['panes'].get(pane)
-    if p and p['visible']:
-        front = subprocess.run(
-            ['osascript', '-e', 'tell application "System Events" to get bundle identifier of first process whose frontmost is true'],
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        if front == 'com.mitchellh.ghostty':
-            return
+    if p and p['visible'] and ghostty_frontmost():
+        return
     title = 'Claude needs input' if state == 'waiting' else 'Claude finished'
     t = shlex.quote(shutil.which('tmux') or 'tmux')
     q = shlex.quote(pane)
-    jump = f'{t} switch-client -t {q}; {t} select-window -t {q}; {t} select-pane -t {q}; open -b com.mitchellh.ghostty'
-    # Homebrew's 3.x, not the rbenv gem shim (2.0.0) that shadows it on PATH: the gem uses the deprecated
-    # notification API and shows nothing on macOS 26.
-    notifier = '/opt/homebrew/bin/terminal-notifier'
-    if os.access(notifier, os.X_OK):
-        cmd = [notifier, '-title', title, '-message', label, '-group', f'claude-{pane}', '-sound', 'default', '-execute', jump]
+    jump = f'{t} switch-client -t {q}; {t} select-window -t {q}; {t} select-pane -t {q}'
+    if sys.platform == 'darwin':
+        jump += '; open -b com.mitchellh.ghostty'
+        # Homebrew's 3.x, not the rbenv gem shim (2.0.0) that shadows it on PATH: the gem uses the deprecated
+        # notification API and shows nothing on macOS 26.
+        notifier = '/opt/homebrew/bin/terminal-notifier'
+        if os.access(notifier, os.X_OK):
+            cmd = [notifier, '-title', title, '-message', label, '-group', f'claude-{pane}', '-sound', 'default', '-execute', jump]
+        else:
+            msg = label.replace('"', '')
+            cmd = ['osascript', '-e', f'display notification "{msg}" with title "{title}" sound name "default"']
+        sh = shlex.join(cmd) + ' >/dev/null 2>&1'
     else:
-        msg = label.replace('"', '')
-        cmd = ['osascript', '-e', f'display notification "{msg}" with title "{title}" sound name "default"']
+        # --wait blocks until the notification is clicked or dismissed and prints the chosen action.
+        # GNOME raises no window when a notification's default action is clicked, so raise Ghostty ourselves.
+        # The tmux server's environment lacks DISPLAY, so carry this one along.
+        if os.environ.get('DISPLAY'):
+            jump += f'; DISPLAY={shlex.quote(os.environ["DISPLAY"])} {shlex.quote(SELF)} raise'
+        cmd = ['timeout', '3600', 'notify-send', '--app-name=Claude', '--wait', '--action=default=Jump', title, label]
+        sh = f'[ "$({shlex.join(cmd)} 2>/dev/null)" = default ] && {{ {jump}; }} >/dev/null 2>&1'
     # Claude kills a hook's background children when it exits, so hand the send to the tmux server.
     # run-shell expands #{...} formats, hence the ## escape.
-    tmux('run-shell', '-b', shlex.join(cmd).replace('#', '##') + ' >/dev/null 2>&1')
+    tmux('run-shell', '-b', sh.replace('#', '##'))
 
 
 # --- hook -----------------------------------------------------------------------
@@ -511,10 +595,12 @@ def main():
         info = query()
         if info is not None:
             notify(args[1], args[2], args[3], info)
+    elif cmd == 'raise':
+        raise_ghostty()
     elif not cmd:
         switcher()
     else:
-        sys.exit('usage:claude-agents [hook <state> | line | list | preview <pane> | rescan | notify <pane> <state> <label>]')
+        sys.exit('usage:claude-agents [hook <state> | line | list | preview <pane> | rescan | notify <pane> <state> <label> | raise]')
 
 
 main()
