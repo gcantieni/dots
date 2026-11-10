@@ -88,10 +88,22 @@ vim.keymap.set('n', '<leader>w', function()
   end
 end, { desc = 'C[W]D (buffer dir or SyncTermCwd in terminal)' })
 
--- bind A-o to "other window" in every mode
-vim.keymap.set({ 'n', 'x', 'o' }, '<A-o>', '<C-w>w', { silent = true })
-vim.keymap.set('i', '<A-o>', '<C-o><C-w>w', { silent = true })
-vim.keymap.set('t', '<A-o>', '<C-\\><C-o><C-w>w', { silent = true })
+-- A-o: next window in every mode, like <C-w>w but skipping diffview's empty
+-- placeholder pane for added/deleted files.
+local function other_window()
+  local cur = vim.fn.winnr()
+  local last = vim.fn.winnr '$'
+  for i = 1, last - 1 do
+    local win = vim.fn.win_getid((cur - 1 + i) % last + 1)
+    local skip = not vim.api.nvim_win_get_config(win).focusable
+      or vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win)) == 'diffview://null'
+    if not skip then
+      vim.api.nvim_set_current_win(win)
+      return
+    end
+  end
+end
+vim.keymap.set({ 'n', 'x', 'o', 'i', 't' }, '<A-o>', other_window, { silent = true, desc = 'Other window' })
 
 -- Window resizing. Ctrl+arrows work in terminal mode too (via <Cmd>, which
 -- doesn't leave the mode), so you can shrink an oversized toggleterm without
