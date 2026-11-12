@@ -16,6 +16,36 @@ DIM = "\x1b[2m"
 GREEN = "\x1b[32m"
 YELLOW = "\x1b[33m"
 CYAN = "\x1b[36m"
+HOME = "\x1b[H"
+CLEAR_SCREEN = "\x1b[2J"
+CLEAR_EOL = "\x1b[K"
+CLEAR_BELOW = "\x1b[J"
+
+# Keys as Terminal.key(text=True) returns them. Arrows have CSI and SS3 forms.
+ESC = "\x1b"
+TAB = "\t"
+SHIFT_TAB = "\x1b[Z"
+CTRL_N = "\x0e"
+CTRL_P = "\x10"
+CTRL_U = "\x15"
+ENTER = ("\n", "\r")
+BACKSPACE = ("\x7f", "\x08")
+UP = ("\x1b[A", "\x1bOA")
+DOWN = ("\x1b[B", "\x1bOB")
+
+
+
+def styled(text: str, sgr: str) -> str:
+    """text in SGR attributes such as "1;34" (bold blue), then a reset."""
+    return f"\x1b[{sgr}m{text}{RESET}"
+
+
+def dim(text: str) -> str:
+    return f"{DIM}{text}{RESET}"
+
+
+def bold(text: str) -> str:
+    return f"{BOLD}{text}{RESET}"
 
 
 class Fail(Exception):
@@ -173,8 +203,11 @@ class RawTerminal:
             return None
         return os.read(self.fd, 1).decode(errors="replace")
 
-    def key(self, timeout: Optional[float] = None) -> Optional[str]:
-        """A key, with arrows as h/j/k/l and a lone escape as q; None on timeout, "" at EOF."""
+    def key(self, timeout: Optional[float] = None, text: bool = False) -> Optional[str]:
+        """A key, with arrows as h/j/k/l and a lone escape as q; None on timeout, "" at EOF.
+
+        With text, escape sequences come back as they are, so typed letters stay distinct.
+        """
         k = self._read(timeout)
         if k != "\x1b":
             return k
@@ -184,6 +217,8 @@ class RawTerminal:
             if not c:
                 break
             rest += c
+        if text:
+            return k + rest
         if not rest:
             return "q"
         return {"[A": "k", "[B": "j", "[C": "l", "[D": "h",

@@ -10,7 +10,7 @@ from .config import Config
 from .ui import Fail
 
 # Board keys that a state can't take.
-RESERVED_KEYS = set("hjkluoARnbx*gq")
+RESERVED_KEYS = set("hjkluoARnbx*gq/")
 KEYS = {
     "dir": "the source tree to work in",
     "branch": "worktree branch; overrides dir with the worktree holding it",

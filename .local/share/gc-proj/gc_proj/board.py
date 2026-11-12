@@ -22,6 +22,8 @@ from .util import self_command, self_env, write_atomic
 
 COLOR = {"active": "34", "review": "33", "checkin": "35", "done": "32", "waiting": "33", "area": "36"}
 LABEL = {"review": "IN REVIEW", "checkin": "CHECKING IN"}
+SEARCH_NEXT = (ui.TAB, ui.CTRL_N, *ui.DOWN)
+SEARCH_PREV = (ui.SHIFT_TAB, ui.CTRL_P, *ui.UP)
 PALETTE = ("34", "33", "35", "32", "31")
 
 
@@ -35,7 +37,7 @@ def state_label(state: str) -> str:
 
 def help_line(cfg) -> str:
     keys = " ".join(k for _, k in project.states(cfg))
-    return (f"hjkl/arrows move  tab areas  enter go  {keys} set state  u auto state  A area  R rename  "
+    return (f"hjkl/arrows move  tab areas  / search  enter go  {keys} set state  u auto state  A area  R rename  "
             "o+r/m/j… open review/MR/Jira/…  n new  b break pane  x done  * all  g refresh  q quit")
 
 
@@ -156,14 +158,23 @@ class Board:
                 return ci, col.index(i)
         return 0, 0
 
-    def render(self, cfg, selected: int = -1, cols: Optional[int] = None) -> str:
+    def matches(self, query: str) -> list[int]:
+        """Cards whose name or detail holds query, ignoring case, in board order."""
+        q = query.lower()
+        return [i for col in self.columns for i in col
+                if q in self.cards[i].name.lower() or q in self.cards[i].detail.lower()]
+
+    def render(self, cfg, selected: int = -1, cols: Optional[int] = None, query: Optional[str] = None) -> str:
         current = os.environ.get("PROJ", "")
         cols = cols or int(os.environ.get("BOARD_COLS") or 0) or ui.term_cols()
         width = max((cols - 2) // len(self.states) - 2, 12)
         lines = []
+        hits = set(self.matches(query)) if query else None
 
         def card_style(i):
             style = f"1;{self.cards[i].color}"
+            if hits is not None and i not in hits:
+                style = "2"
             if i == selected:
                 style += ";7"
             return style
@@ -171,8 +182,8 @@ class Board:
         def mark(i):
             return "▸" if self.cards[i].dir == current else " "
 
-        lines.append("".join(f"\x1b[1;{state_color(s)}m{ui.fit(state_label(s), width)}\x1b[0m  " for s in self.states))
-        lines.append("".join(f"\x1b[2m{'─' * width}\x1b[0m  " for _ in self.states))
+        lines.append("".join(ui.styled(ui.fit(state_label(s), width), f"1;{state_color(s)}") + "  " for s in self.states))
+        lines.append("".join(ui.dim("─" * width) + "  " for _ in self.states))
         rows = max((len(c) for c in self.columns[:self.area_col]), default=0)
         for r in range(rows):
             row = [col[r] if r < len(col) else -1 for col in self.columns[:self.area_col]]
@@ -181,7 +192,7 @@ class Board:
                 if i < 0:
                     line += " " * width + "  "
                 else:
-                    line += f"\x1b[{card_style(i)}m{ui.fit(mark(i) + self.cards[i].name, width)}\x1b[0m  "
+                    line += ui.styled(ui.fit(mark(i) + self.cards[i].name, width), card_style(i)) + "  "
             lines.append(line)
             if any(i >= 0 and self.cards[i].detail for i in row):
                 line = ""
@@ -189,7 +200,7 @@ class Board:
                     if i < 0:
                         line += " " * width + "  "
                     else:
-                        line += f"\x1b[2m{ui.fit('  ' + self.cards[i].detail, width)}\x1b[0m  "
+                        line += ui.dim(ui.fit("  " + self.cards[i].detail, width)) + "  "
                 lines.append(line)
 
         areas = self.columns[self.area_col]
@@ -200,18 +211,20 @@ class Board:
             now = time.time()
             stale = int(cfg["area_stale_days"]) * 86400
             lines.append("")
-            lines.append(f"\x1b[1;{COLOR['area']}mAREAS\x1b[0m \x1b[2m{'─' * (total - 6)}\x1b[0m")
+            lines.append(ui.styled("AREAS", f"1;{COLOR['area']}") + " " + ui.dim("─" * (total - 6)))
             for i in areas:
                 c = self.cards[i]
                 touched = f"touched {age_label(c.touched)}" if c.touched > 0 else "never touched"
                 flag, style = " ", f"1;{c.color}"
                 if stale and (c.touched == 0 or now - c.touched >= stale):
                     flag, style = "?", "1;33"
+                if hits is not None and i not in hits:
+                    style = "2"
                 if i == selected:
                     style += ";7"
-                lines.append(f"\x1b[{style}m{ui.fit(mark(i) + c.name, name_w)}\x1b[0m  "
-                             f"\x1b[2m{ui.fit(touched, touched_w)}\x1b[0m  "
-                             f"{ui.fit(c.kids, kids_w)}  \x1b[1;33m{flag}\x1b[0m")
+                lines.append(f"{ui.styled(ui.fit(mark(i) + c.name, name_w), style)}  "
+                             f"{ui.dim(ui.fit(touched, touched_w))}  "
+                             f"{ui.fit(c.kids, kids_w)}  {ui.styled(flag, '1;33')}")
         return "\n".join(lines) + "\n"
 
 
@@ -303,25 +316,25 @@ def board_new(cfg, area: str) -> bool:
             dir_desc = str(cfg.root / shown)
         elif area:
             d = area_dir(cfg, area)
-            dir_desc = f"{d} \x1b[2m(area dir)\x1b[0m" if d else f"{path} \x1b[2m(current dir)\x1b[0m"
+            dir_desc = f"{d} {ui.dim('(area dir)')}" if d else f"{path} {ui.dim('(current dir)')}"
         elif cfg.text("sandboxes"):
-            dir_desc = "\x1b[2mpick a sandbox on create\x1b[0m"
+            dir_desc = ui.dim("pick a sandbox on create")
         else:
-            dir_desc = "\x1b[2mtype a dir on create\x1b[0m"
+            dir_desc = ui.dim("type a dir on create")
         if jira_mode == "attach":
             jira_desc = jira
         elif jira_mode == "create":
             jira_desc = f"new {jira_type}: {summary}"
         else:
             jira_desc = "(none)"
-        out = ["\x1b[H\x1b[2J\x1b[1mnew project\x1b[0m", "",
-               f"  name  {shown:<50} \x1b[2mr rename\x1b[0m",
-               f"  area  {area or '(none)':<50} \x1b[2ma change\x1b[0m",
+        out = [ui.HOME + ui.CLEAR_SCREEN + ui.bold("new project"), "",
+               f"  name  {shown:<50} {ui.dim('r rename')}",
+               f"  area  {area or '(none)':<50} {ui.dim('a change')}",
                f"  dir   {dir_desc}",
-               "        \x1b[2mt new tree  s pick sandbox  d type a dir  p project dir  (again for default)\x1b[0m"]
+               "        " + ui.dim("t new tree  s pick sandbox  d type a dir  p project dir  (again for default)")]
         if services.jira_enabled(cfg):
-            out.append(f"  jira  {jira_desc:<50} \x1b[2mja attach  jc create  jx none\x1b[0m")
-        out += ["", "\x1b[2menter create  q cancel\x1b[0m"]
+            out.append(f"  jira  {jira_desc:<50} {ui.dim('ja attach  jc create  jx none')}")
+        out += ["", ui.dim("enter create  q cancel")]
         if msg:
             out += ["", msg]
             msg = ""
@@ -329,12 +342,12 @@ def board_new(cfg, area: str) -> bool:
         sys.stdout.flush()
 
         key = ui.getch()
-        if key in ("\n", "\r"):
+        if key in ui.ENTER:
             break
         if key == "q":
             print("cancelled")
             return False
-        if key == "\x1b":
+        if key == ui.ESC:
             print("cancelled")
             return False
         if key == "r":
@@ -416,7 +429,7 @@ def cmd_board(cfg, a):
     if cards is not None:
         refresh = Refresh(cfg, show_all)
     else:
-        sys.stdout.write("\x1b[2mloading...\x1b[0m")
+        sys.stdout.write(ui.dim("loading..."))
         sys.stdout.flush()
         cards = collect(cfg, show_all)
         save(cfg, show_all, cards)
@@ -425,6 +438,8 @@ def cmd_board(cfg, a):
     board = Board(cards, cfg)
     sel = board.index(os.environ.get("PROJ", ""))
     board_sel = -1
+    query: Optional[str] = None
+    search_from = ""
     msg = ""
     dirty = False
     redraw = True
@@ -459,18 +474,63 @@ def cmd_board(cfg, a):
                 redraw = False
                 if not 0 <= sel < len(board.cards):
                     sel = next((board.at(ci, 0) for ci in range(board.area_col + 1) if board.at(ci, 0) >= 0), -1)
-                frame = board.render(cfg, sel)
-                frame += f"\n\x1b[2m{'updating…  ' if refresh else ''}{help_text}\x1b[0m\n{msg}"
+                frame = board.render(cfg, sel, query=query)
+                if query is None:
+                    frame += "\n" + ui.dim(f"{'updating…  ' if refresh else ''}{help_text}") + f"\n{msg}"
+                else:
+                    hits = board.matches(query) if query else []
+                    count = f"{hits.index(sel) + 1}/{len(hits)}" if sel in hits else f"0/{len(hits)}"
+                    cursor = ui.styled(" ", "7")
+                    hint = f"{count if query else ''}  tab/↓ next  shift-tab/↑ prev  enter select  esc cancel"
+                    frame += f"\n/{query}{cursor}  {ui.dim(hint)}\n"
                 msg = ""
-                sys.stdout.write("\x1b[H" + frame.replace("\n", "\x1b[K\n") + "\x1b[K\x1b[J")
+                sys.stdout.write(ui.HOME + frame.replace("\n", ui.CLEAR_EOL + "\n") + ui.CLEAR_EOL + ui.CLEAR_BELOW)
                 sys.stdout.flush()
 
-            key = term.key(0.2)
+            key = term.key(0.2, text=query is not None)
             if key is None:
                 continue
             if key == "":
                 break
             redraw = True
+
+            if query is not None:
+                start = board.index(search_from)
+                if key in ui.ENTER:
+                    if not query or not board.matches(query):
+                        sel = start
+                    elif 0 <= sel and board.cards[sel].state == "area" and 0 <= start < len(board.cards) \
+                            and board.cards[start].state != "area":
+                        board_sel = start
+                    query = None
+                    continue
+                if key == ui.ESC:
+                    query, sel = None, start
+                    continue
+                if key in SEARCH_NEXT or key in SEARCH_PREV:
+                    hits = board.matches(query) if query else []
+                    if hits:
+                        step = 1 if key in SEARCH_NEXT else -1
+                        if sel in hits:
+                            sel = hits[(hits.index(sel) + step) % len(hits)]
+                        else:
+                            sel = hits[0 if step > 0 else -1]
+                    continue
+                if key in ui.BACKSPACE:
+                    if not query:
+                        query, sel = None, start
+                        continue
+                    query = query[:-1]
+                elif key == ui.CTRL_U:
+                    query = ""
+                elif key.isprintable():
+                    query += key
+                else:
+                    continue
+                hits = board.matches(query) if query else []
+                sel = hits[0] if hits else start
+                continue
+
             if sel < 0 and key not in "*qgnb":
                 continue
             ci, ri = board.pos(sel)
@@ -498,7 +558,7 @@ def cmd_board(cfg, a):
                     sel = board.at(ci, ri - 1)
                 elif ci == board.area_col and 0 <= board_sel < len(board.cards) and board.cards[board_sel].state != "area":
                     sel = board_sel
-            elif key == "\t":
+            elif key == ui.TAB:
                 if ci == board.area_col:
                     if 0 <= board_sel < len(board.cards) and board.cards[board_sel].state != "area":
                         sel = board_sel
@@ -507,6 +567,8 @@ def cmd_board(cfg, a):
                 elif board.at(board.area_col, 0) >= 0:
                     board_sel = sel
                     sel = board.at(board.area_col, 0)
+            elif key == "/":
+                query, search_from = "", card.dir
             elif key in ("\n", "\r"):
                 with term.suspend():
                     project.open_project(Project(card.dir, cfg))
@@ -532,7 +594,7 @@ def cmd_board(cfg, a):
                     refreshed()
             elif key == "o":
                 extra = "".join(f"  {k} {label}" for k, (label, _) in card.links.items())
-                sys.stdout.write(f"\r\x1b[Kopen: r review  m merge request  j Jira{extra}")
+                sys.stdout.write(f"\r{ui.CLEAR_EOL}open: r review  m merge request  j Jira{extra}")
                 sys.stdout.flush()
                 sub = term.key()
                 if sub in card.links:
@@ -553,7 +615,7 @@ def cmd_board(cfg, a):
                 with term.suspend():
                     new = pick_area(cfg, f"area for {card.name}",
                                     [board.cards[i].name for i in board.columns[board.area_col]])
-                sys.stdout.write("\x1b[2J")
+                sys.stdout.write(ui.CLEAR_SCREEN)
                 if new is None:
                     continue
                 try:
@@ -563,7 +625,7 @@ def cmd_board(cfg, a):
                 except Fail as e:
                     msg = f"error: {e}"
             elif key == "R":
-                sys.stdout.write("\x1b[H\x1b[2J")
+                sys.stdout.write(ui.HOME + ui.CLEAR_SCREEN)
                 with term.suspend():
                     try:
                         new = ui.prompt(f"rename {card.name} to> ", card.name).strip().replace(" ", "-")
@@ -577,9 +639,9 @@ def cmd_board(cfg, a):
                     except (Fail, OSError) as e:
                         print(f"error: {e}")
                         ui.pause()
-                sys.stdout.write("\x1b[2J")
+                sys.stdout.write(ui.CLEAR_SCREEN)
             elif key == "n":
-                sys.stdout.write("\x1b[H\x1b[2J")
+                sys.stdout.write(ui.HOME + ui.CLEAR_SCREEN)
                 with term.suspend():
                     area = card.name if card and card.state == "area" else current_area(cfg)
                     try:
@@ -588,24 +650,24 @@ def cmd_board(cfg, a):
                     except Cancelled:
                         pass
                     ui.pause()
-                sys.stdout.write("\x1b[2J")
+                sys.stdout.write(ui.CLEAR_SCREEN)
             elif key == "b":
-                sys.stdout.write("\x1b[H\x1b[2J")
+                sys.stdout.write(ui.HOME + ui.CLEAR_SCREEN)
                 with term.suspend():
                     if subprocess.call(self_command("break"), env=self_env()) == 0:
                         return 0
                     ui.pause()
-                sys.stdout.write("\x1b[2J")
+                sys.stdout.write(ui.CLEAR_SCREEN)
             elif key == "x":
                 if card.state == "area":
                     msg = f"{card.name} is an area; gc-proj set kind= first if it really is finished"
                     continue
-                sys.stdout.write("\x1b[H\x1b[2J")
+                sys.stdout.write(ui.HOME + ui.CLEAR_SCREEN)
                 with term.suspend():
                     subprocess.call(self_command("done"), cwd=os.path.expanduser("~"),
                                     env=self_env(PROJ=card.dir, GC_PROJ_FIXED="1"))
                     ui.pause()
-                sys.stdout.write("\x1b[2J")
+                sys.stdout.write(ui.CLEAR_SCREEN)
                 refreshed()
             elif key == "*":
                 refresh, dirty = None, False
@@ -615,7 +677,7 @@ def cmd_board(cfg, a):
                 if cards is not None:
                     refresh = Refresh(cfg, show_all)
                 else:
-                    sys.stdout.write("\x1b[2J\x1b[H\x1b[2mloading...\x1b[0m")
+                    sys.stdout.write(ui.CLEAR_SCREEN + ui.HOME + ui.dim("loading..."))
                     sys.stdout.flush()
                     cards = collect(cfg, show_all)
                     save(cfg, show_all, cards)
