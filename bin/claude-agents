@@ -347,8 +347,9 @@ def notify(pane, state, label, info):
         cmd = ['timeout', '3600', 'notify-send', '--app-name=Claude', '--wait', '--action=default=Jump', title, label]
         sh = f'[ "$({shlex.join(cmd)} 2>/dev/null)" = default ] && {{ {jump}; }} >/dev/null 2>&1'
     # Claude kills a hook's background children when it exits, so hand the send to the tmux server.
-    # run-shell expands #{...} formats, hence the ## escape.
-    tmux('run-shell', '-b', sh.replace('#', '##'))
+    # run-shell expands #{...} formats, hence the ## escape. It also flashes a non-zero exit over the active
+    # pane, which a dismissed notification would otherwise produce.
+    tmux('run-shell', '-b', (sh + '; true').replace('#', '##'))
 
 
 # --- hook -----------------------------------------------------------------------
