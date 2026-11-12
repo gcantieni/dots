@@ -196,7 +196,7 @@ return {
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         clangd = {
-          cmd = { 'clangd', '--header-insertion=never' },
+          cmd = { 'clangd', '--header-insertion=never', '--log=error' },
         },
         -- gopls = {},
         -- pyright = {},
@@ -245,19 +245,18 @@ return {
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- mason-lspconfig enables installed servers; vim.lsp.config layers these
+      -- overrides on top of nvim-lspconfig's defaults.
+      vim.lsp.config('*', { capabilities = capabilities })
+      for server_name, server in pairs(servers) do
+        vim.lsp.config(server_name, server)
+      end
+
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
+        -- Mason installs stylua as a formatter; its build has no --lsp mode.
+        automatic_enable = { exclude = { 'stylua' } },
       }
 
       -- Gotta setup dart manually since it ships with dart sdk, not mason
@@ -281,7 +280,9 @@ return {
         },
       })
 
-      vim.lsp.enable 'dart'
+      if vim.fn.executable 'dart' == 1 then
+        vim.lsp.enable 'dart'
+      end
     end,
   },
 }
