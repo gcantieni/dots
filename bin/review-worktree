@@ -3,10 +3,15 @@
 # Whole-branch overview: <leader>gr with main.
 # Run from a tmux popup: the active pane is the Claude pane underneath, which comments are sent to
 # (read by nvim core/claude_send.lua).
-case "$PWD/" in
-"$HOME/.config/"*)
-  git rev-parse --git-dir >/dev/null 2>&1 || export GIT_DIR="$HOME/.dots" GIT_WORK_TREE="$HOME"
-  ;;
-esac
+# An optional argument names a bare repo whose work tree is $HOME, like ~/.dots.
+if [ -n "$1" ]; then
+  export GIT_DIR="$1" GIT_WORK_TREE="$HOME"
+else
+  case "$PWD/" in
+  "$HOME/.config/"*)
+    git rev-parse --git-dir >/dev/null 2>&1 || export GIT_DIR="$HOME/.dots" GIT_WORK_TREE="$HOME"
+    ;;
+  esac
+fi
 CLAUDE_PANE=$(tmux display -p '#{pane_id}' 2>/dev/null) && export CLAUDE_PANE
 exec nvim -c DiffviewOpen -c "luafile $HOME/bin/review-worktree.lua"
