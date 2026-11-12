@@ -1,17 +1,85 @@
-#!/bin/sh
+#!/usr/bin/env python3
 # Diffview of this worktree's uncommitted changes (index vs working tree, so staging works).
 # Whole-branch overview: <leader>gr with main.
 # Run from a tmux popup: the active pane is the Claude pane underneath, which comments are sent to
 # (read by nvim core/claude_send.lua).
 # An optional argument names a bare repo whose work tree is $HOME, like ~/.dots.
-if [ -n "$1" ]; then
-  export GIT_DIR="$1" GIT_WORK_TREE="$HOME"
-else
-  case "$PWD/" in
-  "$HOME/.config/"*)
-    git rev-parse --git-dir >/dev/null 2>&1 || export GIT_DIR="$HOME/.dots" GIT_WORK_TREE="$HOME"
-    ;;
-  esac
-fi
-CLAUDE_PANE=$(tmux display -p '#{pane_id}' 2>/dev/null) && export CLAUDE_PANE
-exec nvim -c DiffviewOpen -c "luafile $HOME/bin/review-worktree.lua"
+# Outside a repo, or in the ai proj, it uses whichever of dots and dotsw has changes,
+# asking when both or neither do.
+import os
+import subprocess
+import sys
+import termios
+import tty
+from pathlib import Path
+
+HOME = Path.home()
+DOTS = HOME / ".dots"
+DOTSW = HOME / ".dots-work"
+
+
+def dirty(git_dir):
+    out = subprocess.run(
+        ["git", "--git-dir", str(git_dir), "--work-tree", str(HOME), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+    ).stdout
+    return bool(out.strip())
+
+
+def in_repo():
+    return subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True).returncode == 0
+
+
+def read_key(prompt):
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd, termios.TCSANOW)
+        return sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def pick_dotfiles():
+    d = dirty(DOTS)
+    w = dirty(DOTSW)
+    if d and not w:
+        return DOTS
+    if w and not d:
+        return DOTSW
+    key = read_key("Review [d]ots or dots[w]? ").lower()
+    if key == "w":
+        return DOTSW
+    if key in ("d", "\n", "\r"):
+        return DOTS
+    return None
+
+
+def is_under(path, parent):
+    return path == parent or parent in path.parents
+
+
+def main():
+    repo = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else None
+    if repo is None:
+        cwd = Path(os.environ.get("PWD", os.getcwd()))
+        if is_under(cwd, HOME / "proj" / "ai") or not in_repo():
+            repo = pick_dotfiles()
+            if repo is None:
+                return
+    if repo is not None:
+        os.environ["GIT_DIR"] = str(repo)
+        os.environ["GIT_WORK_TREE"] = str(HOME)
+        # Fugitive finds an enclosing repo's .git before it falls back to $GIT_DIR.
+        os.chdir(HOME)
+    pane = subprocess.run(["tmux", "display", "-p", "#{pane_id}"], capture_output=True, text=True)
+    if pane.returncode == 0:
+        os.environ["CLAUDE_PANE"] = pane.stdout.strip()
+    os.execvp("nvim", ["nvim", "-c", "DiffviewOpen", "-c", f"luafile {HOME}/bin/review-worktree.lua"])
+
+
+if __name__ == "__main__":
+    main()
