@@ -17,3 +17,7 @@ names=$(git -C "$root" diff --cached --name-only |
     awk -F/ '$1 == "archive" && NF > 3 { print $3; next } { print $1 }' |
     sort -u | paste -sd' ')
 git -C "$root" commit -q -m "Update $names"
+
+if git -C "$root" remote get-url origin >/dev/null 2>&1; then
+    git -C "$root" push -q origin HEAD || echo "proj-commit: push failed" >&2
+fi
