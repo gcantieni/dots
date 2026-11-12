@@ -2,7 +2,7 @@
 
 Personal defaults for every project. A repo's own `AGENTS.md` takes precedence.
 
-@~/AGENTS.local.md
+@~/.config/agents/AGENTS.local.md
 
 - Be terse. Match the surrounding code's style; don't add explanatory comments
   unless asked.

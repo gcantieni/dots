@@ -1,0 +1,54 @@
+#!/bin/sh
+# Link ~/.config/agents into the places agent tools read it from. Safe to re-run.
+# Links only what is checked out, so a host with dots but not dotsw gets the
+# shared half.
+set -e
+src=$HOME/.config/agents
+
+link() {
+    if [ -L "$2" ]; then
+        rm "$2"
+    elif [ -e "$2" ]; then
+        echo "agents/install: skipping $2: exists and is not a link" >&2
+        return 0
+    fi
+    mkdir -p "$(dirname "$2")"
+    ln -s "$1" "$2"
+}
+
+for f in AGENTS.md AGENTS.local.md; do
+    if [ -e "$src/$f" ]; then
+        link "$src/$f" "$HOME/$f"
+    fi
+done
+
+for d in "$src"/skills/*/; do
+    if [ -d "$d" ]; then
+        d=${d%/}
+        link "$d" "$HOME/.claude/skills/${d##*/}"
+    fi
+done
+
+# bundlebox bind-mounts local/bundles into its containers, so link the whole
+# directory: links inside it would point outside the mount.
+for d in bundles shims; do
+    if [ -d "$src/bundlebox/$d" ]; then
+        link "$src/bundlebox/$d" "$HOME/.config/bundlebox/local/$d"
+    fi
+done
+
+proj=$src/bundlebox/bundles/proj/plugins/bb-proj/skills/proj
+if [ -d "$proj" ]; then
+    link "$proj" "$HOME/.claude/skills/proj"
+fi
+
+for l in "$HOME"/.claude/skills/*; do
+    if [ -L "$l" ] && [ ! -e "$l" ]; then
+        case $(readlink "$l") in
+            "$src"/*)
+                rm "$l"
+                echo "agents/install: removed stale link $l" >&2
+                ;;
+        esac
+    fi
+done

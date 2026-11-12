@@ -9,4 +9,6 @@ dots config pull.rebase true
 dots config rebase.autostash true
 dots config push.autoSetupRemote true
 
+"$HOME/.config/agents/install"
+
 echo "dots configured: hooks at $HOME/.config/dots/hooks"
