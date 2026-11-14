@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # tmux-resurrect post-save-layout hook. $1 is the save file.
 # Prints nothing, since tmux shows a hook's output over the pane.
 

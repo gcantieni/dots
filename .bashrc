@@ -169,7 +169,7 @@ function y() {
     rm -f -- "$tmp"
 }
 
-eval "$(direnv hook bash)"
+command -v direnv &>/dev/null && eval "$(direnv hook bash)"
 
 vterm_printf() {
     if [ -n "$TMUX" ] \
