@@ -111,12 +111,12 @@ alias c=code
 
 alias src='source "$HOME/.bashrc"'
 
-alias fd="fdfind"
+command -v fd >/dev/null || { command -v fdfind >/dev/null && alias fd=fdfind; }
 
 alias rmtmp="find /tmp -mindepth 1 -delete" # don't rm -rf
 
-alias dots='/usr/bin/git --git-dir "$HOME/.dots/" --work-tree "$HOME"'
-alias dotsw='/usr/bin/git --git-dir "$HOME/.dots-work/" --work-tree "$HOME"'
+alias dots='git --git-dir "$HOME/.dots/" --work-tree "$HOME"'
+alias dotsw='git --git-dir "$HOME/.dots-work/" --work-tree "$HOME"'
 case $- in
     *i*) "$HOME/bin/dots-pull" ;;
 esac
@@ -138,7 +138,9 @@ alias projcd='cd "$PROJ"'
 alias projn='$EDITOR $PROJ/notes.txt'
 alias projt='$EDITOR $PROJ/todo.txt'
 alias gdb='gdb -q'
-alias cat=batcat
+if command -v bat >/dev/null; then alias cat=bat
+elif command -v batcat >/dev/null; then alias cat=batcat
+fi
 alias cd.='cd ..'
 alias cd..='cd ../..'
 alias cd...='cd ../../..'
@@ -152,7 +154,7 @@ alias cd........='cd ../../../../../../../..'
 
 # fzf integration
 if [[ $INTERACTIVE_SHELL -eq 1 ]]; then
-    [[ -f /usr/share/doc/fzf/examples/key-bindings.bash ]] && source /usr/share/doc/fzf/examples/key-bindings.bash
+    command -v fzf >/dev/null && eval "$(fzf --bash 2>/dev/null)"
     bind '"\C-o": "$(find \"$PWD\" -type d | fzf)\e\C-e"'
 fi
 
@@ -202,7 +204,7 @@ fi
 
 # Jump anywhere
 command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
-. "$HOME/.cargo/env"
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Quick-edit a config from a curated list
 # Flashcard reminder
