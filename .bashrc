@@ -3,9 +3,6 @@ export LANGUAGE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8 
 alias asciinema='LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8 asciinema'
 
-# Default path stuff
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
-
 # Prepend directories to PATH, skipping any that are missing or already there,
 # so re-sourcing this file never grows or reorders PATH. Arguments are listed in
 # the precedence order they end up in. Defined before .localrc so it can use it.
@@ -43,8 +40,7 @@ path_prepend ~/.config/emacs/bin /opt/nvim-linux-x86_64/bin
 # User customization
 path_prepend ~/bin ~/.local/bin
 
-# Added by Toolbox App. Lives here, not .profile: the PATH reset above would drop
-# it on any re-source of this file.
+# Added by Toolbox App.
 path_append ~/.local/share/JetBrains/Toolbox/scripts
 
 # Track interactive shells so we can gate readline-dependent setup
