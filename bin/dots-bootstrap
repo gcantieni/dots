@@ -1,0 +1,48 @@
+#!/bin/sh
+# Set up ~/.dots on a new host: clone, back up files the checkout would overwrite,
+# check out, run dots-init. Usage: dots-bootstrap [https|ssh] (default https).
+# ssh creates ~/.ssh/id_ed25519 if missing and waits until GitHub accepts it.
+# Prompts read /dev/tty, so it also works as sh -c "$(curl ...)".
+set -e
+mode=${1:-https}
+dots() { git --git-dir="$HOME/.dots" --work-tree="$HOME" "$@"; }
+
+case $mode in
+https)
+    url=https://github.com/gcantieni/dots.git
+    ;;
+ssh)
+    url=git@github.com:gcantieni/dots.git
+    key="$HOME/.ssh/id_ed25519"
+    [ -f "$key" ] || ssh-keygen -t ed25519 -C "$(id -un)@$(uname -n)" -f "$key" </dev/tty
+    eval "$(ssh-agent -s)" >/dev/null
+    trap 'ssh-agent -k >/dev/null' EXIT
+    ssh-add "$key" </dev/tty
+    printf '\n%s\n\nAdd it at https://github.com/settings/ssh/new, then press Enter.\n' "$(cat "$key.pub")"
+    until read -r _ </dev/tty || exit 1
+        ssh -i "$key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            -T git@github.com </dev/null 2>&1 | grep -q 'successfully authenticated'
+    do
+        echo "GitHub doesn't accept the key yet. Add it, then press Enter."
+    done
+    ;;
+*)
+    echo "usage: dots-bootstrap [https|ssh]" >&2
+    exit 2
+    ;;
+esac
+
+git clone --bare "$url" "$HOME/.dots"
+
+backup="$HOME/.dots-backup/$(date +%Y%m%d-%H%M%S)"
+dots ls-tree -r --name-only HEAD | while IFS= read -r f; do
+    if [ -e "$HOME/$f" ] || [ -L "$HOME/$f" ]; then
+        mkdir -p "$backup/$(dirname "$f")"
+        mv "$HOME/$f" "$backup/$f"
+        echo "backed up ~/$f"
+    fi
+done
+
+dots checkout
+"$HOME/bin/dots-init"
+echo "Done. Open a new shell."

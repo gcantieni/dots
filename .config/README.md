@@ -23,6 +23,21 @@ through `dots` (or `git --git-dir=$HOME/.dots ...`) rather than plain `git`.
 `status.showUntrackedFiles` is off, so a new file is invisible to `dots status` until
 it is added.
 
+To set up a new host, run `~/bin/dots-bootstrap` straight from GitHub (needs `git` and
+`curl`). It clones, moves files the checkout would overwrite to
+`~/.dots-backup/<timestamp>/`, checks out, and runs `dots-init`.
+
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/gcantieni/dots/master/bin/dots-bootstrap)" - ssh
+```
+
+`ssh` creates `~/.ssh/id_ed25519` if missing (asks for a passphrase), prints the public
+key, and waits until GitHub accepts it. Drop `- ssh` to clone over HTTPS instead
+(pull only; to push later, add a key and
+`dots remote set-url origin git@github.com:gcantieni/dots.git`). `dots-init` only
+configures the repo and links agent files, so re-run it on an existing host after
+changing either.
+
 **Site-specific config lives in a second bare repo**, `~/.dots-work`, driven the same
 way through the `dotsw` alias, with a remote that never leaves that site. Everything
 in it is optional: the public config checks for it and works without it. The hooks
