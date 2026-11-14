@@ -1,6 +1,6 @@
 #!/bin/sh
-# Set up ~/.dots on a new host: clone, back up files the checkout would overwrite,
-# check out, run dots-init. Usage: dots-bootstrap [https|ssh] (default https).
+# Set up ~/.dots on a new host: clone, list files the checkout would overwrite and
+# offer to move them to ~/.dots-backup/<timestamp>/, check out, run dots-init. Usage: dots-bootstrap [https|ssh] (default https).
 # ssh creates ~/.ssh/id_ed25519 if missing and waits until GitHub accepts it.
 # Prompts read /dev/tty, so it also works as sh -c "$(curl ...)".
 set -e
@@ -34,14 +34,30 @@ esac
 
 git clone --bare "$url" "$HOME/.dots"
 
-backup="$HOME/.dots-backup/$(date +%Y%m%d-%H%M%S)"
-dots ls-tree -r --name-only HEAD | while IFS= read -r f; do
+conflicts=$(dots ls-tree -r --name-only HEAD | while IFS= read -r f; do
     if [ -e "$HOME/$f" ] || [ -L "$HOME/$f" ]; then
+        printf '%s\n' "$f"
+    fi
+done)
+if [ -n "$conflicts" ]; then
+    backup="$HOME/.dots-backup/$(date +%Y%m%d-%H%M%S)"
+    echo "The checkout would overwrite these files:"
+    printf '%s\n' "$conflicts" | sed 's|^|  ~/|'
+    printf 'Move them to ~/%s? [y/N] ' "${backup#"$HOME"/}"
+    read -r ans </dev/tty || ans=
+    case $ans in
+    [yY]*) ;;
+    *)
+        rm -rf "$HOME/.dots"
+        echo "Aborted. Removed ~/.dots; nothing else in ~ was changed."
+        exit 1
+        ;;
+    esac
+    printf '%s\n' "$conflicts" | while IFS= read -r f; do
         mkdir -p "$backup/$(dirname "$f")"
         mv "$HOME/$f" "$backup/$f"
-        echo "backed up ~/$f"
-    fi
-done
+    done
+fi
 
 dots checkout
 "$HOME/bin/dots-init"

@@ -24,8 +24,8 @@ through `dots` (or `git --git-dir=$HOME/.dots ...`) rather than plain `git`.
 it is added.
 
 To set up a new host, run `~/bin/dots-bootstrap` straight from GitHub (needs `git` and
-`curl`). It clones, moves files the checkout would overwrite to
-`~/.dots-backup/<timestamp>/`, checks out, and runs `dots-init`.
+`curl`). It clones, lists files the checkout would overwrite and asks before moving
+them to `~/.dots-backup/<timestamp>/`, checks out, and runs `dots-init`.
 
 ```sh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/gcantieni/dots/master/bin/dots-bootstrap)" - ssh
