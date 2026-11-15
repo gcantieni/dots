@@ -17,14 +17,16 @@ commands.
 
 ```json
 {
-  "dir": "/home/me/src/thing",
+  "dir": "~/src/thing",
   "area": "infra",
   "state": "review",
   "build": "cd \"$dir\" && make"
 }
 ```
 
-`gc-proj keys` describes every key, including the ones plugins add.
+`dir` is stored relative to `~` when it is under it, so a project file synced
+between hosts with different home directories still works. `gc-proj keys` describes
+every key, including the ones plugins add.
 
 Scripts should ask gc-proj instead of reading it: `gc-proj dir [project]` prints
 the working dir (resolving `branch=`), `gc-proj get <key> [-p project]` prints a
