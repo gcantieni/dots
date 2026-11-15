@@ -1,10 +1,23 @@
 #!/bin/sh
 # Set up ~/.dots on a new host: clone, list files the checkout would overwrite and
-# offer to move them to ~/.dots-backup/<timestamp>/, check out, run dots-init. Usage: dots-bootstrap [https|ssh] (default https).
+# offer to move them to ~/.dots-backup/<timestamp>/, check out, run dots-init.
+# Usage: dots-bootstrap [https|ssh] [--git-identity] (default https).
 # ssh creates ~/.ssh/id_ed25519 if missing and waits until GitHub accepts it.
+# --git-identity is passed to dots-init; see there.
 # Prompts read /dev/tty, so it also works as sh -c "$(curl ...)".
 set -e
-mode=${1:-https}
+mode=https
+init_args=
+for arg; do
+    case $arg in
+    https | ssh) mode=$arg ;;
+    --git-identity) init_args=$arg ;;
+    *)
+        echo "usage: dots-bootstrap [https|ssh] [--git-identity]" >&2
+        exit 2
+        ;;
+    esac
+done
 dots() { git --git-dir="$HOME/.dots" --work-tree="$HOME" "$@"; }
 
 case $mode in
@@ -25,10 +38,6 @@ ssh)
     do
         echo "GitHub doesn't accept the key yet. Add it, then press Enter."
     done
-    ;;
-*)
-    echo "usage: dots-bootstrap [https|ssh]" >&2
-    exit 2
     ;;
 esac
 
@@ -60,5 +69,5 @@ if [ -n "$conflicts" ]; then
 fi
 
 dots checkout
-"$HOME/bin/dots-init"
+"$HOME/bin/dots-init" $init_args
 echo "Done. Open a new shell."

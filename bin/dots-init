@@ -1,6 +1,20 @@
 #!/bin/sh
 # Configure the ~/.dots repo on this host. Safe to re-run; dots-bootstrap calls it.
+# Usage: dots-init [--git-identity]
+# --git-identity also writes the personal git author identity to ~/.gitconfig.
+# Off by default: ~/.gitconfig stays untracked so work hosts keep their own.
 set -e
+git_identity=
+for arg; do
+    case $arg in
+    --git-identity) git_identity=1 ;;
+    *)
+        echo "usage: dots-init [--git-identity]" >&2
+        exit 2
+        ;;
+    esac
+done
+
 dots() { git --git-dir="$HOME/.dots" --work-tree="$HOME" "$@"; }
 
 dots config core.bare false
@@ -13,6 +27,12 @@ dots config status.showUntrackedFiles no
 dots config pull.rebase true
 dots config rebase.autostash true
 dots config push.autoSetupRemote true
+
+if [ -n "$git_identity" ]; then
+    git config --global user.name 'Gus Cantieni'
+    git config --global user.email gus.cantieni@gmail.com
+    echo "git identity: $(git config --global user.name) <$(git config --global user.email)>"
+fi
 
 "$HOME/.config/agents/install"
 

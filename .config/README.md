@@ -38,6 +38,14 @@ key, and waits until GitHub accepts it. Drop `- ssh` to clone over HTTPS instead
 configures the repo and links agent files, so re-run it on an existing host after
 changing either.
 
+Pass `--git-identity` (to either script) to also write the personal git author identity
+to `~/.gitconfig`. It is opt-in because `~/.gitconfig` is untracked, so work hosts keep
+their own name and email:
+
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/gcantieni/dots/master/bin/dots-bootstrap)" - ssh --git-identity
+```
+
 **Site-specific config lives in a second bare repo**, `~/.dots-work`, driven the same
 way through the `dotsw` alias, with a remote that never leaves that site. Everything
 in it is optional: the public config checks for it and works without it. The hooks
