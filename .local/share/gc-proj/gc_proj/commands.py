@@ -8,7 +8,7 @@ import sys
 import textwrap
 from pathlib import Path
 
-from . import config, plugins, projfile, trees, services, tmux, ui, worktrees
+from . import config, plugins, projfile, repos, trees, services, tmux, ui, worktrees
 from .project import (KEYS, Project, all_projects, area_dir, check_area, check_name, check_state,
                       current_area, default_state, jira_key_from_name, open_project, require_current,
                       require_env, resolve, set_keys)
@@ -45,6 +45,10 @@ def cmd_new(cfg, a):
     tree = a.tree
     if given and (tree or a.no_sandbox):
         raise Fail("give a dir, --tree or --no-sandbox, not more than one")
+    if a.repo:
+        if tree or a.no_sandbox:
+            raise Fail("--repo works in the repo's clone, not a tree or the project dir")
+        given = os.path.abspath(os.path.expanduser(given or repos.default_dir(cfg, a.repo)))
     if not given and not tree and not a.no_sandbox:
         if area:
             given = area_dir(cfg, area) or os.getcwd()
@@ -63,6 +67,8 @@ def cmd_new(cfg, a):
     if projdir.exists():
         raise Fail(f"{projdir} already exists")
     sandbox = ""
+    if a.repo:
+        repos.ensure(a.repo, given)
     if given:
         if not os.path.isdir(given):
             raise Fail(f"{given} is not a directory")
@@ -82,6 +88,8 @@ def cmd_new(cfg, a):
         raise
 
     keys = {"dir": sandbox}
+    if a.repo:
+        keys["repo"] = a.repo
     if tree:
         keys["tree"] = name
         if tree_repo:
@@ -159,6 +167,38 @@ def cmd_open(cfg, a):
             return 0
         p = Project(cfg.root / picked, cfg)
     return open_project(p)
+
+
+def cmd_clone(cfg, a):
+    if a.target and repos.is_url(a.target):
+        if a.all:
+            raise Fail("give a url or -a, not both")
+        p = require_env(cfg)
+        path = os.path.abspath(os.path.expanduser(a.dir or repos.default_dir(cfg, a.target)))
+        repos.ensure(a.target, path)
+        if not os.path.isdir(path):
+            raise Fail(f"{path} is not a directory")
+        path = os.path.realpath(path)
+        p.update({"repo": a.target, "dir": path})
+        tmux.set_session_dir(path)
+        print(path)
+        return 0
+    if a.dir:
+        raise Fail("a dir goes with a url")
+    if a.all:
+        projects = list(all_projects(cfg))
+    elif a.target:
+        projects = [resolve(cfg, a.target)]
+    else:
+        projects = [require_env(cfg)]
+    failed = 0
+    for p in projects:
+        try:
+            repos.ensure_project(p)
+        except Fail as e:
+            print(f"error: {p.name}: {e}", file=sys.stderr)
+            failed += 1
+    return 1 if failed else 0
 
 
 def cmd_cd(cfg, a):

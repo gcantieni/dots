@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Iterator, Optional
 
-from . import projfile, tmux, worktrees
+from . import projfile, repos, tmux, worktrees
 from .config import Config
 from .ui import Fail
 
@@ -13,6 +13,7 @@ from .ui import Fail
 RESERVED_KEYS = set("hjkluoARnbx*gq/")
 KEYS = {
     "dir": "the source tree to work in",
+    "repo": "git url of the source; open and clone clone it into dir if dir is missing",
     "branch": "worktree branch; overrides dir with the worktree holding it",
     "subdir": "dir within the branch's worktree, if not worktrees.subdir",
     "tree": "tree made by new --tree; done offers to drop it",
@@ -288,6 +289,7 @@ def set_keys(cfg: Config, project: Project, pairs: list[str]) -> None:
 
 
 def open_project(project: Project) -> int:
+    repos.ensure_project(project)
     start = project.working_dir() or str(project.path)
     if not os.path.isdir(start):
         start = str(project.path)

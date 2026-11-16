@@ -19,6 +19,8 @@ DEFAULTS: dict[str, Any] = {
     # Glob of sandboxes to pick from when a new project has no dir.
     "sandboxes": "",
     "sandbox_subdir": "",
+    # Where new --repo clones a project's repo when no dir is given.
+    "repos": "~/repos",
     "branch_prefix": getpass.getuser() + "/",
     "new_tree": False,
     "area_stale_days": 21,              # 0 turns the stale-area flag off

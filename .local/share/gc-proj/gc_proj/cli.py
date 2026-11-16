@@ -16,16 +16,22 @@ project; inside tmux the session's PROJ wins over the shell's, so a pane that
 moved to another project's session acts on that project.
 
 projects
-  new <name> [dir] [--tree | --no-sandbox] [--area=AREA] [--jira=KEY] [--no-open]
+  new <name> [dir] [--tree | --no-sandbox | --repo=URL] [--area=AREA] [--jira=KEY] [--no-open]
                        make a project and open its session. Without a dir it works in its
                        area's dir (or the current dir if the area has none), else in a picked
                        sandbox (sandboxes) or a typed dir. --tree makes a tree (trees.new) on a
-                       new branch <branch_prefix><name>; --no-sandbox works in the project dir.
+                       new branch <branch_prefix><name>; --no-sandbox works in the project dir;
+                       --repo clones URL into dir (default <repos>/<repo name>) unless it's there.
                        It joins the current project's area unless --area says otherwise.
   break [name] [--area=AREA]
                        make a project of the current tmux pane, which moves, running and all,
                        into the project's new session
-  open [project]       switch to a project's session (pick one if none given)
+  open [project]       switch to a project's session (pick one if none given), cloning its
+                       repo first if its dir is missing
+  clone <url> [dir]    clone url into dir (default <repos>/<repo name>) unless it's there, and
+                       point the current project at it as cd does, keeping url as its repo
+  clone [project | -a] clone the repo of the current project (or every project) whose dir is
+                       missing, as on a new host
   cd [path | --no-sandbox]
                        point the current project at path (pick one if none given) and make it
                        the session's default dir
@@ -71,12 +77,17 @@ def parser_for(name: str) -> argparse.ArgumentParser:
         ap.add_argument("--no-sandbox", action="store_true")
         ap.add_argument("--area")
         ap.add_argument("--jira")
+        ap.add_argument("--repo", help="git url to clone into dir")
         ap.add_argument("--no-open", action="store_true", help="don't open its tmux session")
     elif name == "break":
         ap.add_argument("name", nargs="?")
         ap.add_argument("--area")
     elif name == "open":
         ap.add_argument("project", nargs="?")
+    elif name == "clone":
+        ap.add_argument("target", nargs="?", metavar="url | project")
+        ap.add_argument("dir", nargs="?")
+        ap.add_argument("-a", "--all", action="store_true")
     elif name == "cd":
         ap.add_argument("path", nargs="?")
         ap.add_argument("--no-sandbox", action="store_true")
@@ -109,6 +120,7 @@ COMMANDS = {
     "new": commands.cmd_new,
     "break": commands.cmd_break,
     "open": commands.cmd_open,
+    "clone": commands.cmd_clone,
     "cd": commands.cmd_cd,
     "dir": commands.cmd_dir,
     "get": commands.cmd_get,

@@ -25,7 +25,12 @@ commands.
 ```
 
 `dir` is stored relative to `~` when it is under it, so a project file synced
-between hosts with different home directories still works. `gc-proj keys` describes
+between hosts with different home directories still works. A project made with
+`new --repo URL` also keeps `repo`, and `open` and `clone` clone it into `dir`
+when `dir` is missing, so syncing the root to a new host and running
+`gc-proj clone -a` brings back every project's source. `gc-proj clone <url>`
+does the same for an existing project: it clones into `repos` and points the
+project at the clone. `gc-proj keys` describes
 every key, including the ones plugins add.
 
 Scripts should ask gc-proj instead of reading it: `gc-proj dir [project]` prints
@@ -52,6 +57,7 @@ is off until configured:
 root = "~/proj"
 sandboxes = "~/src/*"           # offered by new and cd when no dir is given
 sandbox_subdir = ""             # appended to a picked sandbox
+repos = "~/repos"               # where new --repo clones when no dir is given
 branch_prefix = "me/"           # for new --tree branches
 new_tree = false                # make --tree the default for new
 area_stale_days = 21            # flag areas untouched this long; 0 turns it off
