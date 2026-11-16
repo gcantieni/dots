@@ -49,7 +49,8 @@ def now():
 
 def tmux(*args):
     try:
-        r = subprocess.run(['tmux', *args], capture_output=True, text=True)
+        # tmux turns tabs in format output into '_' under a non-UTF-8 locale, as in bg sessions (LC_ALL=C).
+        r = subprocess.run(['tmux', *args], capture_output=True, text=True, env={**os.environ, 'LC_ALL': 'C.UTF-8'})
     except FileNotFoundError:
         return None
     return r.stdout if r.returncode == 0 else None
