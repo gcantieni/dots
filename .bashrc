@@ -35,7 +35,7 @@ path_append() {
 }
 
 # Tool customization
-path_prepend ~/.config/emacs/bin /opt/nvim-linux-x86_64/bin
+path_prepend ~/.config/emacs/bin
 
 # User customization
 path_prepend ~/bin ~/.local/bin
