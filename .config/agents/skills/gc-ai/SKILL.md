@@ -64,3 +64,23 @@ isn't loaded. `~/.claude/skills/synced/` is managed by claude.ai. Don't edit it.
 notification events. It records each tmux pane's agent state for the tmux
 status line, a switcher, and notifications. `~/bin/proj-commit` runs on
 SessionEnd (see the `gc-proj` skill).
+
+## Agents across a tmux restart
+
+tmux-resurrect and tmux-continuum (`~/.tmux.conf`) save every 15 minutes and
+restore when tmux starts. `@resurrect-hook-post-save-layout` runs
+`~/bin/tmux-resurrect-save`, which:
+
+- runs `~/bin/vacate snapshot <save>` if vacate is installed. It rewrites each
+  pane's saved command so Claude comes back as `claude --resume ID` with its
+  other options, nvim as `nvim -S <session>`, and bundlebox as
+  `<bundlebox_cmd> --resume ID`. Panes are matched by session, window, and pane
+  index, not pane id.
+- writes each session's `PROJ` to `~/.local/share/tmux/resurrect/proj-env`,
+  since resurrect doesn't save session environments. `~/.bashrc` reads it back
+  in a restored pane and sets `PROJ` on the session.
+
+`@resurrect-processes` limits which commands are restarted. Where vacate is
+installed, it lists only commands with `--resume`, so a Claude with no
+conversation comes back as a plain shell. `claude-agents` records aren't used
+for restore.
