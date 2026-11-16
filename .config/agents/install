@@ -1,7 +1,7 @@
 #!/bin/sh
 # Link ~/.config/agents into the places agent tools read it from. Safe to re-run.
-# Links only what is checked out, so a host with dots but not dotsw gets the
-# shared half.
+# Links only what is present. Machine-specific links go in install.local, which
+# is sourced with link() and $src available.
 set -e
 src=$HOME/.config/agents
 
@@ -29,17 +29,8 @@ for d in "$src"/skills/*/; do
     fi
 done
 
-# bundlebox bind-mounts local/bundles into its containers, so link the whole
-# directory: links inside it would point outside the mount.
-for d in bundles shims; do
-    if [ -d "$src/bundlebox/$d" ]; then
-        link "$src/bundlebox/$d" "$HOME/.config/bundlebox/local/$d"
-    fi
-done
-
-proj=$src/bundlebox/bundles/proj/plugins/bb-proj/skills/proj
-if [ -d "$proj" ]; then
-    link "$proj" "$HOME/.claude/skills/proj"
+if [ -f "$src/install.local" ]; then
+    . "$src/install.local"
 fi
 
 for l in "$HOME"/.claude/skills/*; do
