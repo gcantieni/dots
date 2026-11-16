@@ -29,8 +29,8 @@ Everything hand-written for agents lives here. Tools read it through links that
   .gitignore           __pycache__
 ```
 
-`install` links `~/AGENTS.md`, `~/AGENTS.local.md`, and each `skills/<name>`
-into `~/.claude/skills/`, then sources `install.local`. It links
+`install` links each `skills/<name>` into `~/.claude/skills/`, then sources
+`install.local`. It links
 only what is present, skips real files in the way, removes its own stale links,
 and is safe to re-run. It runs from the dotfile init scripts. Re-run it after
 adding, renaming, or removing a skill.

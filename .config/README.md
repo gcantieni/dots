@@ -5,7 +5,7 @@ session/project/agent workflow fits together and where the pieces live.
 
 > Environment note: this is a Linux host paired with a Windows VM (Cygwin), SSH'd via
 > Windows OpenSSH. Claude Code and everything below run on the **Linux** side.
-> General coding conventions live in `~/AGENTS.md` (`~/.config/../AGENTS.md`).
+> General coding conventions live in `~/.config/agents/AGENTS.md`.
 
 ## Version control
 

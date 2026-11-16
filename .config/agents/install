@@ -16,12 +16,6 @@ link() {
     ln -s "$1" "$2"
 }
 
-for f in AGENTS.md AGENTS.local.md; do
-    if [ -e "$src/$f" ]; then
-        link "$src/$f" "$HOME/$f"
-    fi
-done
-
 for d in "$src"/skills/*/; do
     if [ -d "$d" ]; then
         d=${d%/}
