@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+# Open the last Claude reply in nvim. Lines you add or change become comments, each sent with
+# the reply text it follows, pasted into the Claude pane unsubmitted.
+# Run from a tmux popup over a Claude pane, or pass the pane id.
+#   review-reply --dry-run [pane] [edited-file]   print what would be sent
+import difflib
+import glob
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+STATUS_DIR = Path.home() / ".claude" / "status"
+PROJECTS_DIR = Path.home() / ".claude" / "projects"
+QUOTE_LINES = 4
+HEADER = "Inline comments on your last reply. Each quotes the text it's about:"
+
+
+class Error(Exception):
+    pass
+
+
+def current_pane():
+    r = subprocess.run(["tmux", "display", "-p", "#{pane_id}"], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Error("not in tmux")
+    return r.stdout.strip()
+
+
+def transcript_for(pane):
+    try:
+        rec = json.loads((STATUS_DIR / f"pane-{pane}.json").read_text())
+    except (OSError, ValueError):
+        raise Error(f"no Claude agent recorded for pane {pane}")
+    sid = rec.get("session_id")
+    if not sid:
+        raise Error(f"no session id recorded for pane {pane}")
+    paths = glob.glob(str(PROJECTS_DIR / "*" / f"{sid}.jsonl"))
+    if not paths:
+        raise Error(f"no transcript for session {sid}")
+    return max(paths, key=os.path.getmtime)
+
+
+def is_prompt(entry):
+    if entry.get("type") != "user" or entry.get("isMeta"):
+        return False
+    content = (entry.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return True
+    return isinstance(content, list) and any(b.get("type") == "text" for b in content)
+
+
+def text_blocks(entry):
+    if entry.get("type") != "assistant":
+        return []
+    content = (entry.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return []
+    return [b["text"].strip() for b in content if b.get("type") == "text" and b.get("text", "").strip()]
+
+
+def last_reply(path):
+    """Text of the newest assistant turn that has any, following the parent chain so
+    rewound branches are skipped."""
+    entries = {}
+    last = None
+    with open(path) as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e.get("uuid") and not e.get("isSidechain"):
+                entries[e["uuid"]] = e
+                last = e
+    texts = []
+    seen = set()
+    e = last
+    while e is not None and e["uuid"] not in seen:
+        seen.add(e["uuid"])
+        if is_prompt(e) and texts:
+            break
+        texts = text_blocks(e) + texts
+        e = entries.get(e.get("parentUuid"))
+    if not texts:
+        raise Error("no reply text found")
+    return "\n\n".join(texts) + "\n"
+
+
+def quote_before(orig, i):
+    """Up to QUOTE_LINES lines of the paragraph that ends before orig[i]."""
+    end = i
+    while end > 0 and not orig[end - 1].strip():
+        end -= 1
+    start = end
+    while start > 0 and orig[start - 1].strip() and end - start < QUOTE_LINES:
+        start -= 1
+    return orig[start:end]
+
+
+def strip_original(old, new):
+    """The part of an edited line that was added to the original."""
+    if old.strip() and old in new:
+        before, _, after = new.partition(old)
+        return (before + " " + after).strip()
+    return new
+
+
+def comments(orig, edited):
+    out = []
+    sm = difflib.SequenceMatcher(None, orig, edited, autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "insert":
+            quote = quote_before(orig, i1)
+            body = edited[j1:j2]
+        elif tag == "replace":
+            quote = orig[i1:i2]
+            if i2 - i1 == j2 - j1:
+                body = [strip_original(o, n) for o, n in zip(orig[i1:i2], edited[j1:j2])]
+            else:
+                body = edited[j1:j2]
+        else:
+            continue
+        body = "\n".join(body).strip()
+        if body:
+            out.append((quote, body))
+    return out
+
+
+def render(items):
+    parts = [HEADER]
+    for quote, body in items:
+        lines = [f"> {q}".rstrip() for q in quote]
+        parts.append("\n".join(lines + [body]))
+    return "\n\n".join(parts) + "\n"
+
+
+def lines(text):
+    return [l.rstrip() for l in text.splitlines()]
+
+
+def paste(pane, text):
+    subprocess.run(["tmux", "load-buffer", "-b", "review-reply", "-"], input=text, text=True, check=True)
+    subprocess.run(["tmux", "paste-buffer", "-d", "-p", "-b", "review-reply", "-t", pane], check=True)
+
+
+def main():
+    args = sys.argv[1:]
+    dry_run = "--dry-run" in args
+    args = [a for a in args if a != "--dry-run"]
+    pane = args[0] if args else current_pane()
+    reply = last_reply(transcript_for(pane))
+
+    if dry_run and len(args) > 1:
+        edited = Path(args[1]).read_text()
+        print(render(comments(lines(reply), lines(edited))), end="")
+        return
+
+    tmp = tempfile.mkdtemp(prefix="review-reply-")
+    try:
+        path = Path(tmp) / "reply.md"
+        path.write_text(reply)
+        subprocess.run(["nvim", str(path)])
+        items = comments(lines(reply), lines(path.read_text()))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if not items:
+        return
+    text = render(items)
+    if dry_run:
+        print(text, end="")
+        return
+    paste(pane, text)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Error, subprocess.CalledProcessError) as e:
+        print(f"review-reply: {e}", file=sys.stderr)
+        if sys.stdin.isatty():
+            input("Press Enter to close.")
+        sys.exit(1)
