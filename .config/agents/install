@@ -1,9 +1,10 @@
 #!/bin/sh
 # Link ~/.config/agents into the places agent tools read it from. Safe to re-run.
 # Links only what is present. Machine-specific links go in install.local, which
-# is sourced with link() and $src available.
+# is sourced with link(), link_skill() and $src available.
 set -e
 src=$HOME/.config/agents
+skill_dirs="$HOME/.claude/skills $HOME/.agents/skills"
 
 link() {
     if [ -L "$2" ]; then
@@ -16,10 +17,15 @@ link() {
     ln -s "$1" "$2"
 }
 
+link_skill() {
+    for t in $skill_dirs; do
+        link "$1" "$t/${1##*/}"
+    done
+}
+
 for d in "$src"/skills/*/; do
     if [ -d "$d" ]; then
-        d=${d%/}
-        link "$d" "$HOME/.claude/skills/${d##*/}"
+        link_skill "${d%/}"
     fi
 done
 
@@ -27,13 +33,17 @@ if [ -f "$src/install.local" ]; then
     . "$src/install.local"
 fi
 
-for l in "$HOME"/.claude/skills/*; do
-    if [ -L "$l" ] && [ ! -e "$l" ]; then
-        case $(readlink "$l") in
-            "$src"/*)
-                rm "$l"
-                echo "agents/install: removed stale link $l" >&2
-                ;;
-        esac
-    fi
+for t in $skill_dirs; do
+    for l in "$t"/*; do
+        if [ -L "$l" ] && [ ! -e "$l" ]; then
+            case $(readlink "$l") in
+                "$src"/*)
+                    rm "$l"
+                    echo "agents/install: removed stale link $l" >&2
+                    ;;
+            esac
+        fi
+    done
 done
+
+"$src/codex-sync"

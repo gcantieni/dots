@@ -1,6 +1,6 @@
 ---
 name: flash
-description: Turns something from the conversation into flashcards and adds them to Anki through AnkiConnect, or to another store that a local extension defines. Use when the user invokes /flash.
+description: Turns something from the conversation into flashcards and adds them to Anki through AnkiConnect, or to another store that a local extension defines. Use only when the user invokes this skill by name.
 disable-model-invocation: true
 compatibility: Local Anki Desktop with AnkiConnect at 127.0.0.1:8765.
 ---

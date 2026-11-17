@@ -25,13 +25,14 @@ Everything hand-written for agents lives here. Tools read it through links that
   AGENTS.local.md      this machine's extra rules, if any
   skills/<name>/       personal skills
   install              makes the links
+  codex-sync           writes ~/.codex/AGENTS.md
   install.local        this machine's extra links, if any; sourced by install
   .gitignore           __pycache__
 ```
 
-`install` links each `skills/<name>` into `~/.claude/skills/`, then sources
-`install.local`. It links
-only what is present, skips real files in the way, removes its own stale links,
+`install` links each `skills/<name>` into `~/.claude/skills/` and
+`~/.agents/skills/` (Codex), sources `install.local`, and runs `codex-sync`. It
+links only what is present, skips real files in the way, removes its own stale links,
 and is safe to re-run. It runs from the dotfile init scripts. Re-run it after
 adding, renaming, or removing a skill.
 
@@ -41,7 +42,10 @@ adding, renaming, or removing a skill.
 ## Instruction layering
 
 `~/.claude/CLAUDE.md` imports `AGENTS.md`, which imports `AGENTS.local.md`.
-Other tools that read AGENTS.md get the same rules.
+Codex doesn't follow `@` imports, so `codex-sync` writes `~/.codex/AGENTS.md`
+with them inlined. It runs from `install` and from the `codex` shell function in
+`~/.bashrc`, so an edit reaches Codex at its next launch. Don't edit the
+generated file.
 
 Put a new rule in the most general file it is true for: `AGENTS.md` if it holds
 on every machine, `AGENTS.local.md` if only on this one, and a repo's own
@@ -54,6 +58,11 @@ rule when the rule is needed only for some tasks and has a clear trigger.
 every machine: put machine-specific parts in `references/local.md` and have
 `SKILL.md` say "If `references/local.md` exists, read it first." `flash` and
 this skill are examples.
+
+A skill that should run only when the user asks for it sets
+`disable-model-invocation: true` in its frontmatter for Claude, and has an
+`agents/openai.yaml` with `policy: { allow_implicit_invocation: false }` for
+Codex. `flash` is an example.
 
 `~/.claude/skills-archive/` holds skills not in use now but kept for later. It
 isn't loaded. `~/.claude/skills/synced/` is managed by claude.ai. Don't edit it.
