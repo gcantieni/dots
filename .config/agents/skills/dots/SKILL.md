@@ -33,3 +33,19 @@ machine or employer goes in it.
   most every four hours.
 - `~/bin/dots-init` configures the repo on a new machine and runs
   `~/.config/agents/install`.
+
+## New machine
+
+`dots-bootstrap` clones the repo, asks before moving files the checkout would
+overwrite to `~/.dots-backup/<timestamp>/`, checks out, and runs `dots-init`.
+It needs `git` and `curl`:
+
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/gcantieni/dots/master/bin/dots-bootstrap)" - ssh
+```
+
+`ssh` makes `~/.ssh/id_ed25519` if missing and waits until GitHub accepts it.
+Without it the clone is over HTTPS and pull-only. `--git-identity`, for either
+script, writes the personal author identity to the untracked `~/.gitconfig`.
+Re-run `dots-init` on an existing machine after changing it or the agent
+links.
