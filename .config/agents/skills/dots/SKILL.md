@@ -14,8 +14,16 @@ and where it conflicts with this file, it wins.
 work in scripts or tool calls, so run git directly:
 
 ```sh
-/usr/bin/git --git-dir "$HOME/.dots" --work-tree "$HOME" <command>
+git -C "$HOME" --git-dir "$HOME/.dots" --work-tree "$HOME" <command>
 ```
+
+Call `git` by name and let `PATH` find it. Don't hardcode a location: it is
+`/usr/bin/git` on Debian, `/opt/homebrew/bin/git` on Apple-silicon macOS, and
+`/run/current-system/sw/bin/git` on NixOS.
+
+`-C "$HOME"` matters. Path-scoped commands (`status`, `ls-files`, `diff`) report
+only on the current directory's subtree, so run from a project directory without
+it and a repo with hundreds of tracked files looks empty.
 
 It is shared across all the user's machines. Nothing that is specific to one
 machine or employer goes in it.
