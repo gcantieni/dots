@@ -1,0 +1,28 @@
+# Noctalia config. Tracked in ~/.dots.
+#
+# Noctalia merges, in order:
+#   1. every *.toml in this directory, in filename order
+#   2. ~/.local/state/noctalia/settings.toml -- written by the GUI settings
+#      panel, and it OVERRIDES everything above
+# So any key you also touch in the GUI will silently win over this file. Keep
+# the two sets of keys disjoint.
+#
+#   noctalia config export full     # every key + built-in default (the reference)
+#   noctalia config export merged   # just the current deltas
+#   noctalia config validate        # syntax, unknown keys, bad values
+#   noctalia msg config-reload      # apply without restarting
+
+[shell.animation]
+enabled = false
+
+# Idle: power the monitors down, never the machine -- this box serves web pages.
+# [idle.behavior.lock-and-suspend] and [idle.behavior.lock] stay at their
+# default enabled = false. The flake also disables the sleep/suspend/hibernate
+# systemd targets, so suspend cannot happen either way.
+[idle]
+pre_action_fade_seconds = 2.0
+
+[idle.behavior.screen-off]
+action = "screen_off"
+enabled = true
+timeout = 600.0
