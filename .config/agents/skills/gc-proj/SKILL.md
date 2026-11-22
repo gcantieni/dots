@@ -22,9 +22,10 @@ restart the session there. Reading is fine: `gc-proj dir [project]` and
 
 ## Layout
 
-- The root is `~/proj`. It is a git repo committed by `~/bin/proj-commit` when
-  a session ends, so don't run git in it. Only top-level `*.md`, `*.json`, and
-  `*.txt` in each project are tracked.
+- The root is `~/proj`. Syncthing syncs it between the user's machines, so
+  don't put a git repo or build output in it. The shared ignore rules are in
+  `~/proj/.stglobalignore`; each machine's `.stignore` only includes it.
+  `archive/` stays local except its `.proj.json` and notes files.
 - Each project is `~/proj/<name>/` with a `.proj.json`. `dir` points at the
   project's source, and other keys track state, area, branch, issue, and so on.
   `gc-proj keys` describes them.

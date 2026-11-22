@@ -10,7 +10,8 @@ finding the right one.
   after the project with dots as underscores, and sets `PROJ` on it.
 - `tm`: fzf attach to an existing session.
 - `gc-proj`: link to `~/.local/share/gc-proj`. See the `gc-proj` skill.
-- `proj-commit`: commits `~/proj` on SessionEnd.
+- `proj-commit`: commits `~/proj` if it is a git repo. Unused now that `~/proj`
+  is synced by Syncthing; no hook calls it.
 
 ## Agents
 
