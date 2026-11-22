@@ -55,3 +55,6 @@ complete -F _vw_complete vw
 alias cco='claude --model opus'
 alias ccs='claude --model sonnet'
 alias cch='claude --model haiku'
+
+# ask what is the capital of france  -- no quoting needed
+ask() { claude --model sonnet -p "$*"; }
