@@ -18,6 +18,8 @@ done
 dots() { git --git-dir="$HOME/.dots" --work-tree="$HOME" "$@"; }
 
 dots config core.bare false
+# Needed by anything that finds the repo through $GIT_DIR alone (nvim's :Dots).
+dots config core.worktree "$HOME"
 dots config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
 dots fetch --quiet
 dots branch --quiet -u origin/master master

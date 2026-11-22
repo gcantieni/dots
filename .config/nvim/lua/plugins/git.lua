@@ -5,12 +5,45 @@ return {
     'tpope/vim-fugitive',
     cmd = { 'Git', 'G', 'Gedit', 'Gread', 'Gwrite', 'Gdiffsplit' },
     init = function()
-      -- Bare dotfile repos (see the dots/dotsw shell aliases). They rely on core.worktree being set.
-      for cmd, dir in pairs({ Dots = '~/.dots', Dotsw = '~/.dots-work' }) do
+      -- The dotfile repos (see the dots/dotsw shell aliases) keep no .git under
+      -- the work tree, so nothing finds them from a buffer. :Dots / :Dotsw point
+      -- this nvim's whole git environment at one, so fugitive, gitsigns and
+      -- diffview all agree; :Dots! restores the normal per-project detection
+      -- (fugitive keeps its ~ -> ~/.dots mapping, which only shows up for files
+      -- in no other repo). Any args go on to :Git, so `:Dots status` works.
+      local function git_env(dir, args)
+        dir = dir and vim.fn.expand(dir)
+        if dir and vim.fn.isdirectory(dir) == 0 then
+          return vim.notify('no repo at ' .. dir, vim.log.levels.ERROR)
+        end
+        vim.env.GIT_DIR = dir
+        vim.env.GIT_WORK_TREE = dir and vim.env.HOME or nil
+
+        -- Both plugins cache the repo they resolved, so make them look again.
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          pcall(vim.api.nvim_buf_del_var, buf, 'git_dir')
+        end
+        local ok, gs = pcall(require, 'gitsigns')
+        if ok then
+          gs.detach_all()
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(buf) then
+              gs.attach { bufnr = buf }
+            end
+          end
+        end
+
+        if args ~= '' then
+          vim.cmd('Git ' .. args)
+        else
+          vim.notify('git dir: ' .. (vim.env.GIT_DIR or '(per project)'))
+        end
+      end
+
+      for cmd, dir in pairs { Dots = '~/.dots', Dotsw = '~/.dots-work' } do
         vim.api.nvim_create_user_command(cmd, function(opts)
-          vim.b.git_dir = vim.fn.expand(dir)
-          vim.cmd('Git ' .. opts.args)
-        end, { nargs = '*', desc = 'Fugitive on ' .. dir })
+          git_env(not opts.bang and dir or nil, opts.args)
+        end, { nargs = '*', bang = true, desc = 'Point nvim at ' .. dir .. ' (! to clear)' })
       end
 
       -- Fugitive's own gq closes the status window, even when it's the last one.
