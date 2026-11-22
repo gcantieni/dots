@@ -29,6 +29,30 @@ for d in "$src"/skills/*/; do
     fi
 done
 
+# Merge the shared Claude settings (status line, hooks) into the host's own
+# settings.json, which stays untracked; the fragment wins for the keys it sets.
+settings=$HOME/.claude/settings.json
+if [ -f "$src/claude-settings.json" ]; then
+    if command -v jq >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$settings")"
+        [ -f "$settings" ] || echo '{}' > "$settings"
+        tmp=$(mktemp "$settings.XXXXXX")
+        if jq -s '.[0] * .[1]' "$settings" "$src/claude-settings.json" > "$tmp"; then
+            if cmp -s "$tmp" "$settings"; then
+                rm "$tmp"
+            else
+                mv "$tmp" "$settings"
+                echo "agents/install: updated $settings" >&2
+            fi
+        else
+            rm "$tmp"
+            echo "agents/install: couldn't merge $settings" >&2
+        fi
+    else
+        echo "agents/install: skipping Claude settings: jq not found" >&2
+    fi
+fi
+
 if [ -f "$src/install.local" ]; then
     . "$src/install.local"
 fi

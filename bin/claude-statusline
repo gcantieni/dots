@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Claude Code status line: model · context used (pie fills clockwise) · 5h limit · weekly limit.
+
+jq -r '
+  def pct: if . == null then null else (. | floor | tostring) + "%" end;
+  def resets: if (type != "number") then "" else
+      ((. - now) / 60 | floor) as $m |
+      if $m <= 0 then "" elif $m < 60 then " \($m)m" elif $m < 1440 then " \($m / 60 | floor)h"
+      else " \($m / 1440 | floor)d" end end;
+  def tint($p): if $p == null or $p < 50 then .
+      elif $p < 80 then "\u001b[33m" + . + "\u001b[0m"
+      else "\u001b[31m" + . + "\u001b[0m" end;
+
+  (.context_window // {}) as $cw |
+  ($cw.current_usage // {}) as $u |
+  (($u.input_tokens // 0) + ($u.cache_creation_input_tokens // 0) + ($u.cache_read_input_tokens // 0)) as $ctx |
+  ($cw.used_percentage // (if ($cw.context_window_size // 0) > 0 then $ctx * 100 / $cw.context_window_size else null end)) as $ctxpct |
+  (.rate_limits // {}) as $rl |
+
+  [ (.model.display_name // "?"),
+    ((($ctxpct // 0) / 12.5 | round | if . > 8 then 8 else . end) as $n |
+       ([if $n == 0 then 984934 else 985757 + $n end] | implode)
+       + " \(($ctxpct // 0) | pct)"
+       | tint($ctxpct)),
+    (if $rl.five_hour then "\uf252 \($rl.five_hour.used_percentage | pct)\($rl.five_hour.resets_at | resets)" | tint($rl.five_hour.used_percentage) else empty end),
+    (if $rl.seven_day then "\uf073 \($rl.seven_day.used_percentage | pct)\($rl.seven_day.resets_at | resets)" | tint($rl.seven_day.used_percentage) else empty end)
+  ] | join(" · ")
+'

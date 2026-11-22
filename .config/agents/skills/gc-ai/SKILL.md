@@ -26,12 +26,14 @@ Everything hand-written for agents lives here. Tools read it through links that
   skills/<name>/       personal skills
   install              makes the links
   codex-sync           writes ~/.codex/AGENTS.md
+  claude-settings.json Claude Code status line and hooks, merged by install
   install.local        this machine's extra links, if any; sourced by install
   .gitignore           __pycache__
 ```
 
 `install` links each `skills/<name>` into `~/.claude/skills/` and
-`~/.agents/skills/` (Codex), sources `install.local`, and runs `codex-sync`. It
+`~/.agents/skills/` (Codex), merges `claude-settings.json` into
+`~/.claude/settings.json` with jq, sources `install.local`, and runs `codex-sync`. It
 links only what is present, skips real files in the way, removes its own stale links,
 and is safe to re-run. It runs from the dotfile init scripts. Re-run it after
 adding, renaming, or removing a skill.
@@ -69,10 +71,16 @@ isn't loaded. `~/.claude/skills/synced/` is managed by claude.ai. Don't edit it.
 
 ## Claude Code hooks
 
+Hooks and the status line are defined in `claude-settings.json`, not in
+`~/.claude/settings.json`, which stays untracked and per-machine. `install`
+merges the fragment in (jq `*`): a hook event the fragment lists replaces the
+host's for that event, and keys it doesn't list are left alone. Edit the fragment
+and re-run `install`.
+
 `~/bin/claude-agents hook <state>` runs on session, prompt, tool, stop, and
 notification events. It records each tmux pane's agent state for the tmux
-status line, a switcher, and notifications. `~/bin/proj-commit` runs on
-SessionEnd (see the `gc-proj` skill).
+status line, a switcher, and notifications. `~/bin/claude-statusline` draws the
+status line.
 
 ## Agents across a tmux restart
 
