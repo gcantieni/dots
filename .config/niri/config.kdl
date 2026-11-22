@@ -123,6 +123,10 @@ binds {
     Mod+K     { focus-window-up; }
     Mod+L     { focus-column-right; }
 
+    // gg / G.
+    Mod+G       { focus-column-first; }
+    Mod+Shift+G { focus-column-last; }
+
     Mod+Ctrl+Left  { move-column-left; }
     Mod+Ctrl+Down  { move-window-down; }
     Mod+Ctrl+Up    { move-window-up; }
@@ -142,19 +146,28 @@ binds {
     Mod+Shift+Up    { focus-monitor-up; }
     Mod+Shift+Right { focus-monitor-right; }
 
+    // vim's J joins a line into the one above; niri's consume joins a window
+    // into the column. Shift+K splits it back out. These take the slots a
+    // vertically-stacked monitor would use, which this machine doesn't have.
+    Mod+Shift+J { consume-window-into-column; }
+    Mod+Shift+K { expel-window-from-column; }
+
     Mod+Shift+Ctrl+Left  { move-column-to-monitor-left; }
     Mod+Shift+Ctrl+Down  { move-column-to-monitor-down; }
     Mod+Shift+Ctrl+Up    { move-column-to-monitor-up; }
     Mod+Shift+Ctrl+Right { move-column-to-monitor-right; }
 
+    // Workspaces: next/previous, emacs C-n / C-p. The vertical axis gets its
+    // own keys so Mod+J/K can stay strictly inside the column.
+    Mod+N      { focus-workspace-down; }
+    Mod+P      { focus-workspace-up; }
+    Mod+Ctrl+N { move-column-to-workspace-down; }
+    Mod+Ctrl+P { move-column-to-workspace-up; }
+
     Mod+Page_Down      { focus-workspace-down; }
     Mod+Page_Up        { focus-workspace-up; }
-    Mod+U              { focus-workspace-down; }
-    Mod+I              { focus-workspace-up; }
     Mod+Ctrl+Page_Down { move-column-to-workspace-down; }
     Mod+Ctrl+Page_Up   { move-column-to-workspace-up; }
-    Mod+Ctrl+U         { move-column-to-workspace-down; }
-    Mod+Ctrl+I         { move-column-to-workspace-up; }
 
     Mod+Shift+Page_Down { move-workspace-down; }
     Mod+Shift+Page_Up   { move-workspace-up; }
