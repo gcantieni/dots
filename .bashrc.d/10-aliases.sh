@@ -51,3 +51,7 @@ _vw_complete() {
   COMPREPLY=($(compgen -c -- "$cur"))
 }
 complete -F _vw_complete vw
+
+alias cco='claude --model opus'
+alias ccs='claude --model sonnet'
+alias cch='claude --model haiku'
