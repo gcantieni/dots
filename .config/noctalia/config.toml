@@ -26,3 +26,9 @@ pre_action_fade_seconds = 2.0
 action = "screen_off"
 enabled = true
 timeout = 600.0
+
+# Emacs-style list navigation alongside the arrow keys. Noctalia's keybinds are
+# shell-wide, so this covers the launcher plus every other panel list.
+[keybinds]
+down = [ "Down", "Ctrl+n" ]
+up = [ "Up", "Ctrl+p" ]

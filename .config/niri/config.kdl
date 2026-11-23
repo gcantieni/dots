@@ -95,7 +95,7 @@ binds {
     Mod+Shift+C hotkey-overlay-title="Clipboard History" { spawn-sh "noctalia msg panel-toggle clipboard"; }
     Mod+Shift+W hotkey-overlay-title="Wallpaper Picker" { spawn-sh "noctalia msg panel-toggle wallpaper"; }
     Mod+Shift+Q hotkey-overlay-title="Session Menu" { spawn-sh "noctalia msg panel-toggle session"; }
-    Mod+Alt+L hotkey-overlay-title="Lock the Screen" { spawn-sh "noctalia msg session lock"; }
+    Mod+Shift+L hotkey-overlay-title="Lock the Screen" { spawn-sh "noctalia msg session lock"; }
 
     Alt+Tab repeat=false { spawn-sh "noctalia msg window-switcher hold"; }
     Alt+Shift+Tab repeat=false { spawn-sh "noctalia msg window-switcher hold reverse"; }
