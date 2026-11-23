@@ -71,5 +71,6 @@
         ]
       }
     ]
-  }
+  },
+  "voice" : { "enabled": true, "mode": "hold" }
 }
