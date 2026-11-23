@@ -278,6 +278,12 @@ return {
       if vim.fn.executable 'dart' == 1 then
         vim.lsp.enable 'dart'
       end
+
+      -- nil and nixfmt come from nixpkgs (see ~/nix), not mason: mason would
+      -- build nil from cargo. lspconfig already ships the nil_ls defaults.
+      if vim.fn.executable 'nil' == 1 then
+        vim.lsp.enable 'nil_ls'
+      end
     end,
   },
 }

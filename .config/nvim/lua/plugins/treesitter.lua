@@ -1,4 +1,4 @@
-local ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+local ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'nix', 'query', 'vim', 'vimdoc' }
 -- markdown/cpp/rust are excluded so `gq` list formatting (see
 -- lua/core/formatlist.lua) can control 'indentexpr'.
 local no_indent = { ruby = true, markdown = true, cpp = true, rust = true }
