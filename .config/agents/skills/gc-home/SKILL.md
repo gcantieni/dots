@@ -41,7 +41,7 @@ they exist, and machine-specific settings go there rather than in the shared
 file:
 
 - `~/.localrc`, sourced early by `.bashrc`, for PATH and env
-- `~/.bashrc.work` and `~/.bashrc.ai`, sourced last
+- machine-local fragments numbered 90+ in `~/.bashrc.d`, sourced last
 - `~/.tmux.conf.local`
 - extra modules in `~/.config/nvim/lua/core/`, all of which load
 - `~/.config/doom/config-work.el`
